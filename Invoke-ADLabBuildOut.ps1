@@ -1,6 +1,6 @@
 ﻿Param
  (
-    $Domain = 'na.trd.com',
+    $Domain = 'ant.trd.com',
     [switch]$CreateTopLevelOUs,
     [switch]$CreateBranchOfficeOUs,
     [switch]$RenameDomainAdministrator,
@@ -116,6 +116,7 @@ Function Rename-DomainAdministrator
     TRY
      {
         Rename-ADObject -Identity (Get-ADUser "Administrator" -Server $DomainDC) -NewName $NewName -Server $DomainDC
+         Set-ADUser -Identity (Get-ADUser 'Administrator' -Server $DomainDC) -SamAccountName $NewName -Server $DomainDC
         Write-Host "Administrator account renamed to $NewName complete"   
      }
     CATCH
@@ -128,10 +129,10 @@ Function Create-ADLabUsers
      (
         [Parameter(Mandatory=$true)]$Domain,
         [Parameter(Mandatory=$true)]$NumberOfADUserAccounts,
-        [Parameter(Mandatory=$true)][string]$Password,
         [Parameter(Mandatory=$true)]$FirstNameFile,
         [Parameter(Mandatory=$true)]$LastNameFile,
         [Parameter(Mandatory=$true)]$UserOU,
+        [string]$Password,
         [switch]$EnableAccounts,
         [switch]$RandomUserName
      )
@@ -146,6 +147,12 @@ Function Create-ADLabUsers
       { $UserOUPath = "OU=Domain Users,$($DomainInfo.DistinguishedName)" } 
      ELSE
       { $UserOUPath = "OU=$UserOU,$($DomainInfo.DistinguishedName)" }
+
+    $PasswordArray = @('Password99!','Password1234','P@55w0rd','1234Password','Password123!')
+    IF ($Password)
+      { [switch]$PasswordString = $True }
+     ELSE
+      { [switch]$PasswordString = $False }
 
      [int]$UserAccountLoopCount = 0
 
@@ -273,26 +280,24 @@ Function Create-ADLabUsers
 		IF ($RandomNumber -le 20) {$Office = "CHI-B2-ABC"}
 		IF ($RandomNumber -le 15) {$Office = "MIA-A1-ABC"}
 		
-        IF ($EnableAccounts -eq $True)
-         {	     
-		   
-			    New-ADUser –name "$TestUserAccount" -SamAccountName "$TestUserAccount" -Path "$UserOUPath" -DisplayName "$TestUserAccount" `
-			        -Description "$Site TestUser$Count" -Enabled $True -AccountPassword (ConvertTo-SecureString -AsPlainText $Password -Force)  -CannotChangePassword $True `
-			        -PasswordNeverExpires $False -HomeDirectory "$HomeDir" -ProfilePath "$ProfilePath" -Company $Company -Organization $Organization `
-				    -Department $Department -Division $Division -Office $Office -GivenName $UserFirstName -Surname $UserLastName `
-                    -UserPrincipalName $TestUserUPN -Title $Title -HomeDrive $HomeDrive -Server $DomainDC
-		    
+        IF ($PasswordString -eq $False )
+         { $Password = $PasswordArray | Get-Random -Count 1 } 
 
+        IF ($EnableAccounts -eq $True)
+         {	     	   
+			New-ADUser –name "$TestUserAccount" -SamAccountName "$TestUserAccount" -Path "$UserOUPath" -DisplayName "$TestUserAccount" `
+			    -Description "$Site TestUser$Count" -Enabled $True -AccountPassword (ConvertTo-SecureString -AsPlainText $Password -Force)  -CannotChangePassword $True `
+			    -PasswordNeverExpires $False -HomeDirectory "$HomeDir" -ProfilePath "$ProfilePath" -Company $Company -Organization $Organization `
+				-Department $Department -Division $Division -Office $Office -GivenName $UserFirstName -Surname $UserLastName `
+                -UserPrincipalName $TestUserUPN -Title $Title -HomeDrive $HomeDrive -Server $DomainDC
          }
         ELSE
-         {	     
-		    
-			    New-ADUser –name "$TestUserAccount" -SamAccountName "$TestUserAccount" -Path "$UserOUPath" -DisplayName "$TestUserAccount" `
-			        -Description "$Site TestUser$Count" -Enabled $False -AccountPassword (ConvertTo-SecureString -AsPlainText $Password -Force)  -CannotChangePassword $True `
-			        -PasswordNeverExpires $False -HomeDirectory "$HomeDir" -ProfilePath "$ProfilePath" -Company $Company -Organization $Organization `
-				    -Department $Department -Division $Division -Office $Office -GivenName $UserFirstName -Surname $UserLastName `
-                    -UserPrincipalName $TestUserUPN -Title $Title -HomeDrive $HomeDrive  -Server $DomainDC
-		     
+         {	       
+			New-ADUser –name "$TestUserAccount" -SamAccountName "$TestUserAccount" -Path "$UserOUPath" -DisplayName "$TestUserAccount" `
+			    -Description "$Site TestUser$Count" -Enabled $False -AccountPassword (ConvertTo-SecureString -AsPlainText $Password -Force)  -CannotChangePassword $True `
+			    -PasswordNeverExpires $False -HomeDirectory "$HomeDir" -ProfilePath "$ProfilePath" -Company $Company -Organization $Organization `
+				-Department $Department -Division $Division -Office $Office -GivenName $UserFirstName -Surname $UserLastName `
+                -UserPrincipalName $TestUserUPN -Title $Title -HomeDrive $HomeDrive  -Server $DomainDC     
           }
      }
     While 
@@ -324,7 +329,7 @@ Function Create-ADLabServiceAccounts
     (
         [Parameter(Mandatory=$true)]$Domain,
         [Parameter(Mandatory=$true)]$OUPath,
-        [Parameter(Mandatory=$true)]$Password
+        $Password
     )
     
     $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
@@ -335,13 +340,20 @@ Function Create-ADLabServiceAccounts
     $UserOUPath = "$OUPath,$($DomainInfo.DistinguishedName)"
 
     $LabServiceAccountArray = @('svcAGPM','svcAzure','svcBESServer','svcCiscoUnity','svcCommVault','svcCyberArkReconcile','svcExchange','svcExchArchive','svcImanami','svcLDAP','svcPatch','svcQualys','svcQuest','svcSCCM','svcServiceNow','svcSCOM','svcSQL','svcVaronis','svcVMWare','svcVPN','svcWeb')
-    
+    $PasswordArray = @('Qwerty!','Zxcvbnm!','Qwertyuiop!','1234asdf!','qwer1234!')
+    IF ($Password)
+      { [switch]$PasswordString = $True }
+     ELSE
+      { [switch]$PasswordString = $False }
+
     [int]$SerivceAccountLoopCount = 0
 
     ForEach ($LabServiceAccountArrayItem in $LabServiceAccountArray)
      { 
         $SerivceAccountLoopCount++
         $LabServiceAccountArrayUPN = $LabServiceAccountArrayItem + '@' + $DomainInfo.DNSRoot
+        IF ($PasswordString -eq $False)
+         { $Password = $PasswordArray | Get-Random -Count 1 } 
 
         Write-Host "Creating service account #$SerivceAccountLoopCount of $($LabServiceAccountArray.Count)"
         New-ADUser -Name $LabServiceAccountArrayItem -AccountPassword (ConvertTo-SecureString -AsPlainText $Password -Force) -UserPrincipalName $LabServiceAccountArrayUPN -Path $UserOUPath -Enabled $True -Server $DomainDC 
@@ -388,8 +400,9 @@ Function Create-ADLabAdminAccounts
         [Parameter(Mandatory=$true)]$Domain,        
         [Parameter(Mandatory=$true)][int]$NumberOfAdminAccounts, # Note that actual # of accounts created may be less than this number due to admin name collisions
         [Parameter(Mandatory=$true)][string]$FirstNameFile,
-        [Parameter(Mandatory=$true)][string]$Password,
+        [Parameter(Mandatory=$true)][string]$LastNameFile,
         [Parameter(Mandatory=$true)][string]$AccountOU,
+        $Password,
         [string]$AdminNamePrefix,
         [string]$AdminNameSuffix
     )
@@ -399,18 +412,31 @@ Function Create-ADLabAdminAccounts
     $AdminAccountOU = "$AccountOU,$($DomainInfo.DistinguishedName)"
 
     $FirstNameArray = Import-CSV $FirstNameFile
+    $LastNameArray = Import-CSV $LastNameFile
+
+    $PasswordArray = @('1q2w3e4r5t6y','q1w2e3r4t5y6','Za!','1234asdf!','qwer1234!')
+    IF ($Password)
+      { [switch]$PasswordString = $True }
+     ELSE
+      { [switch]$PasswordString = $False }
 
     [int]$AdminAccountLoopCount = 0
 
     Do
      {  
         $AdminAccountLoopCount++
+        Write-Host "Creating Admin account $AdminAccountLoopCount of $NumberOfAdminAccounts"
+
         $RandomNumber = Get-Random -Minimum 0 -Maximum 999
         $FirstName = ($FirstNameArray[$RandomNumber]).Name
         IF ($AdminNamePrefix)
          { $AdminAccountName = $AdminNamePrefix + $FirstName }
         IF ($AdminNameSuffix)
          { $AdminAccountName = $FirstName + $AdminNameSuffix }
+        
+        IF ($PasswordString -eq $False)
+         { $Password = $PasswordArray | Get-Random -Count 1 }  
+
         New-ADUser -Name $AdminAccountName -AccountPassword (ConvertTo-SecureString -AsPlainText $Password -Force) -Server $DomainDC -Path $AdminAccountOU -Enabled $True 
      }
     While 
@@ -441,7 +467,7 @@ IF ($RenameDomainAdministrator -eq $True)
 
 IF ($CreateADLabUsers -eq $True)
   {
-    Create-ADLabUsers -Domain $Domain -NumberOfADUserAccounts '10' -Password "Password99!" -FirstNameFile 'C:\Scripts\FirstNames.csv' -LastNameFile 'C:\Scripts\LastNames.csv' -UserOU "Domain Users" -EnableAccounts
+    Create-ADLabUsers -Domain $Domain -NumberOfADUserAccounts '20' -FirstNameFile 'C:\Scripts\FirstNames.csv' -LastNameFile 'C:\Scripts\LastNames.csv' -UserOU "Domain Users" -EnableAccounts
   }
 
 IF ($CreateADLabGroups -eq $True)
@@ -451,10 +477,11 @@ IF ($CreateADLabGroups -eq $True)
 
 IF ($CreateADLabServiceAccounts -eq $True)
   {
-    Create-ADLabServiceAccounts -Domain $Domain -OUPath 'OU=Service Accounts,OU=Enterprise Services' -Password "ThisIsASecurePassword!"
+    Create-ADLabServiceAccounts -Domain $Domain -OUPath 'OU=Service Accounts,OU=Enterprise Services'
   }
 
 IF ($CreateADLabAdminAccounts -eq $True)
   {
-    Create-ADLabAdminAccounts -Domain $Domain -AdminNamePrefix 'Admin' -AdminNameSuffix -NumberOfAdminAccounts '10' -FirstNameFile 'C:\Scripts\FirstNames.csv' -LastNameFile 'C:\Scripts\LastNames.csv' -Password  "ThisIsASecurePassword!" -AccountOU 'OU=Accounts,OU=AD Administration'
+    Create-ADLabAdminAccounts -Domain $Domain -AdminNamePrefix 'Admin' -NumberOfAdminAccounts '10' -FirstNameFile 'C:\Scripts\FirstNames.csv' -LastNameFile 'C:\Scripts\LastNames.csv' -AccountOU 'OU=Accounts,OU=AD Administration'
   }
+
