@@ -2,8 +2,7 @@
  (
     $Domain,
     $AuthType = 'NTLM',
-    [switch]$OnlyShowAuccess = $True,
-    [switch]$EnableJitter,
+    [switch]$OnlyShowSuccess = $True,
     [switch]$AutoTune,
     [string]$DomainController,
     $PasswordFile,
@@ -69,7 +68,7 @@ ForEach ($PasswordArrayItem in $PasswordArray)
      {
         $username = $DomainInfo.NetBIOSName + '\' + $UserAccountArrayItem.SamAccountName
 
-        If ($OnlyShowAuccess -ne $True)
+        If ($OnlyShowSuccess -ne $True)
          { Write-Host "Password spraying username $($UserAccountArrayItem.SamAccountName) with password $PasswordArrayItem" }
 
         IF ($AuthType -eq 'NTLM')
