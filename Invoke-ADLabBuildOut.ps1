@@ -1,15 +1,57 @@
-﻿Param
+﻿<#
+.SYNOPSIS
+Builds out an Active Directory lab environment with OUs and accounts.
+
+.DESCRIPTION
+This script creates Organizational Units (OUs), user accounts, and admin accounts to simulate a production AD environment.
+
+.PARAMETER DomainName
+Domain Name of your AD
+
+.EXAMPLE
+PS>.\Invoke-ADLabBuildOut.ps1
+
+This is the prefer method of running this script
+.EXAMPLE
+PS>.\Invoke-ADLabBuildOut.ps1 -DomainName ad.vulndomain.corp 
+
+.EXAMPLE
+PS>Set-ExecutionPolicy Bypass -Scope Process -Force 
+PS>.\Invoke-ADLabBuildOut.ps1
+
+.NOTES
+AUTHOR: Sean Metcalf
+AUTHOR EMAIL: sean.metcalf@trustedsec.com
+COPYRIGHT: 2025 
+WEBSITE: https://ADSecurity.org
+
+This script requires the following:
+ * PowerShell 5.0 (minimum)
+ * Windows 10/2016
+ * Active Directory PowerShell Module
+ * Group Policy PowerShell Module
+If the above requirements are not met, results will be inconsistent.
+This script is provided as-is, without support.
+#>
+
+Param
  (
-    $Domain = 'ant.trd.com',
+    $Domain = 'na.trd.com',
     [switch]$CreateTopLevelOUs,
     [switch]$CreateBranchOfficeOUs,
     [switch]$RenameDomainAdministrator,
     [switch]$CreateADLabUsers,
     [switch]$CreateADLabGroups,
     [switch]$CreateADLabServiceAccounts,
-    [switch]$CreateADLabAdminAccounts
- )
+    [switch]$CreateADLabAdminAccounts,
+    [switch]$CreateADLabGMSAs,
+    [switch]$CreateADLabWindowsWorkstations,
+    [switch]$CreateADLabWindowsServers,
+    [switch]$CreateADLabComputers,
+    [switch]$CreateADLabFGPPs,
+    [switch]$SetSPNDefaultAdminAccount
 
+ )
 
 Function Create-TopLevelOUs
  {
@@ -18,17 +60,19 @@ Function Create-TopLevelOUs
         [Parameter(Mandatory=$true)]$Domain
      )
 
-    [array]$TopLevelOUs = @('AD Administration','Enterprise Services','Domain Users')
+    [array]$TopLevelOUs = @('AD Administration','Enterprise Services','Domain Users','Workstations')
 
     $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
     $DomainInfo = Get-ADDomain -Server $DomainDC
 
     ForEach ($TopLevelOUsItem in $TopLevelOUs)
      {
+        Write-Host "Creating the top-level OU: $TopLevelOUsItem"
         New-ADOrganizationalUnit $TopLevelOUsItem -Server $DomainDC
         Start-sleep 5
         IF ($TopLevelOUsItem -like "*Admin*")
          {
+            Write-Host "Creating OUs under the $TopLevelOUsItem top-level OU"
             New-ADOrganizationalUnit 'Accounts' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False
             New-ADOrganizationalUnit 'Computers' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False
             New-ADOrganizationalUnit 'Groups' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False
@@ -36,13 +80,15 @@ Function Create-TopLevelOUs
          }
         IF ($TopLevelOUsItem -eq "Enterprise Services")
          {
+            Write-Host "Creating OUs under the $TopLevelOUsItem top-level OU"
+            New-ADOrganizationalUnit 'Entra ID' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False
             New-ADOrganizationalUnit 'Exchange' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False
+            New-ADOrganizationalUnit 'Groups' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False 
             New-ADOrganizationalUnit 'SCCM' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False
-            New-ADOrganizationalUnit 'VMware' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False
-            New-ADOrganizationalUnit 'Web Servers' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False
             New-ADOrganizationalUnit 'Servers' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False
             New-ADOrganizationalUnit 'Service Accounts' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False
-            New-ADOrganizationalUnit 'Groups' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False 
+            New-ADOrganizationalUnit 'VMware' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False
+            New-ADOrganizationalUnit 'Web Servers' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False
          }
      }   
  }
@@ -78,7 +124,7 @@ Function Create-BranchOfficeOUs
     $APTopLevelOUArray = @('Singapore','Tokyo','Seoul','Hong Kong','Beijing','Bangkok','Sydney','Shanghai','Melbourne','Kuala Lumpur','Osaka','Delhi','Mumbai','Bangalore','Auckland','Taipei','Guangzhou','Shenzhen','Brisbane','Perth')
     $EUTopLevelOUArray = @('Vienna','Barcelona','Paris','Budapest','Lisbon','Amsterdam','London','Rome','Stockholm','Athens','Berlin','Prague','Copenhagen','Florence','Madrid','Edinburgh','Istanbul','Milan','Munich','Seville','Venice','Brussels','Saint Petersburg','Dubrovnik')
     $NATopLevelOUArray = @("Mexico City","New York","Los Angeles","Toronto","Chicago","Houston","Montreal","Havana","Tijuana","Phoenix","Ecatepec de Morelos","León","Philadelphia","Puebla","Juárez","Zapopan","San Antonio","Calgary","Guadalajara","San Diego","Dallas","Guatemala City","Port-au-Prince","Monterrey","Tegucigalpa","Edmonton","Panama City","Nezahualcóyotl","Ottawa","Managua","Santo Domingo","Austin","Jacksonville","San Jose","Fort Worth","Washington DC")
-    $SATopLevelOUArray = @('São Paulo','Buenos Aires','Rio de Janeiro','Bogotá','Lima','Santiago','Belo Horizonte','Salvador','Brasília','Caracas',"Medellín","Guayaquil","Fortaleza","Salvador","Belo Horizonte","Manaus","Cali","Curitiba","Quito","Maracaibo","Santa Cruz de la Sierra","Recife",'Córdoba')
+    $SATopLevelOUArray = @('São Paulo','Buenos Aires','Rio de Janeiro','Bogotá','Lima','Santiago','Belo Horizonte','Salvador','Brasília','Caracas',"Medellín","Guayaquil","Fortaleza","Manaus","Cali","Curitiba","Quito","Maracaibo","Santa Cruz de la Sierra","Recife",'Córdoba')
 
     Switch($DomainInfo.Name)
      {
@@ -92,6 +138,7 @@ Function Create-BranchOfficeOUs
 
     Write-Host "Creating $($TopLevelOUArray.Count) Top-Level OUs"
 
+    $TopLevelOUArray = $TopLevelOUArray | Sort-Object
     ForEach ($TopLevelOUArrayItem in $TopLevelOUArray)
      { 
         Write-Host "Creating the OU $TopLevelOUArrayItem in $domain"
@@ -104,7 +151,7 @@ Function Create-BranchOfficeOUs
  }
 
 Function Rename-DomainAdministrator
- {
+ {`
     Param
      (
         [Parameter(Mandatory=$true)]$Domain,
@@ -134,7 +181,7 @@ Function Create-ADLabUsers
         [Parameter(Mandatory=$true)]$UserOU,
         [string]$Password,
         [switch]$EnableAccounts,
-        [switch]$RandomUserName
+        [String]$NameFormatLayout  # FirstL,LastF,FirstNameLastName,LastNameFirstName,Random
      )
 
      $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
@@ -146,7 +193,7 @@ Function Create-ADLabUsers
      IF (!$UserOU)
       { $UserOUPath = "OU=Domain Users,$($DomainInfo.DistinguishedName)" } 
      ELSE
-      { $UserOUPath = "OU=$UserOU,$($DomainInfo.DistinguishedName)" }
+      { $UserOUPath = "$UserOU,$($DomainInfo.DistinguishedName)" }
 
     $PasswordArray = @('Password99!','Password1234','P@55w0rd','1234Password','Password123!')
     IF ($Password)
@@ -155,7 +202,6 @@ Function Create-ADLabUsers
       { [switch]$PasswordString = $False }
 
      [int]$UserAccountLoopCount = 0
-
     Do
      {  
         $UserAccountLoopCount++
@@ -283,21 +329,83 @@ Function Create-ADLabUsers
         IF ($PasswordString -eq $False )
          { $Password = $PasswordArray | Get-Random -Count 1 } 
 
+        $ReversibleEncryptionSetting = get-random -min 1 -max 6
+        If ($ReversibleEncryptionSetting -eq 1)
+         { $ReversibleEncrpytionSet = $True }
+        ELSE
+         { $ReversibleEncrpytionSet = $False }
+
+        $PasswordNotRequiredSetting = get-random -min 1 -max 6
+        If ($PasswordNotRequiredSetting -eq 2)
+         { $PasswordNotRequiredSet = $True }
+        ELSE
+         { $PasswordNotRequiredSet = $False }
+
+        $PasswordNeverExpiresSetting = get-random -min 1 -max 6
+        If ($PasswordNeverExpiresSetting -eq 5)
+         { $PasswordNeverExpiresSet = $True }
+        ELSE
+         { $PasswordNeverExpiresSet = $False }
+
+        $KerberosEncyptionDESSetting = get-random -min 1 -max 6
+        If ($KerberosEncyptionDESSetting -eq 3)
+         { $KerberosEncyptionSet = $True }
+        ELSE
+         { $KerberosEncyptionSet = $False }
+
+        $DoesNotRequirePreAuthSetting = get-random -min 1 -max 6
+        If ($DoesNotRequirePreAuthSetting -eq 4)
+         { $DoesNotRequirePreAuthSet = $True }
+        ELSE
+         { $DoesNotRequirePreAuthSet = $False }
+
+        $CannotChangePasswordSetting = get-random -min 1 -max 6
+        If ($CannotChangePasswordSetting -eq 1)
+         { $CannotChangePasswordSet = $True }
+        ELSE
+         { $CannotChangePasswordSet = $False }
+
+        $SmartcardLogonRequiredSetting = get-random -min 1 -max 6
+        If ($SmartcardLogonRequiredSetting -eq 2)
+         { $SmartcardLogonRequiredSet = $True }
+        ELSE
+         { $SmartcardLogonRequiredSet = $False }
+
+        $CannotChangePasswordSetting = get-random -min 1 -max 6
+        If ($CannotChangePasswordSetting -eq 3)
+         { $CannotChangePasswordSet = $True }
+        ELSE
+         { $CannotChangePasswordSet = $False }
+
+        $SmartcardLogonRequiredSetting = get-random -min 1 -max 6
+        If ($SmartcardLogonRequiredSetting -eq 4)
+         { $SmartcardLogonRequiredSet = $True }
+        ELSE
+         { $SmartcardLogonRequiredSet = $False }
+        
         IF ($EnableAccounts -eq $True)
          {	     	   
 			New-ADUser –name "$TestUserAccount" -SamAccountName "$TestUserAccount" -Path "$UserOUPath" -DisplayName "$TestUserAccount" `
-			    -Description "$Site TestUser$Count" -Enabled $True -AccountPassword (ConvertTo-SecureString -AsPlainText $Password -Force)  -CannotChangePassword $True `
-			    -PasswordNeverExpires $False -HomeDirectory "$HomeDir" -ProfilePath "$ProfilePath" -Company $Company -Organization $Organization `
-				-Department $Department -Division $Division -Office $Office -GivenName $UserFirstName -Surname $UserLastName `
-                -UserPrincipalName $TestUserUPN -Title $Title -HomeDrive $HomeDrive -Server $DomainDC
+			    -Description "Test User" -AccountPassword (ConvertTo-SecureString -AsPlainText $Password -Force)  `
+			    -HomeDirectory "$HomeDir" -ProfilePath "$ProfilePath" -Company $Company -Organization $Organization -EmailAddress $TestUserUPN `
+				-Department $Department -Division $Division -Office $Office -GivenName $UserFirstName -Surname $UserLastName -CannotChangePassword $CannotChangePasswordSet `
+                -UserPrincipalName $TestUserUPN -Title $Title -HomeDrive $HomeDrive -AllowReversiblePasswordEncryption $ReversibleEncrpytionSet -PasswordNotRequired  $PasswordNotRequiredSet `
+                -PasswordNeverExpires $PasswordNeverExpiresSet -SmartcardLogonRequired $SmartcardLogonRequiredSet `
+                 -Enabled $True -Server $DomainDC
+            Set-ADAccountControl -Identity $TestUserAccount -DoesNotRequirePreAuth $DoesNotRequirePreAuthSet -Server $DomainDC
+            IF ($KerberosEncyptionSet -eq $True)
+             { Set-ADAccountControl -Identity $TestUserAccount -UseDESKeyOnly $True -Server $DomainDC  }
          }
         ELSE
          {	       
 			New-ADUser –name "$TestUserAccount" -SamAccountName "$TestUserAccount" -Path "$UserOUPath" -DisplayName "$TestUserAccount" `
-			    -Description "$Site TestUser$Count" -Enabled $False -AccountPassword (ConvertTo-SecureString -AsPlainText $Password -Force)  -CannotChangePassword $True `
-			    -PasswordNeverExpires $False -HomeDirectory "$HomeDir" -ProfilePath "$ProfilePath" -Company $Company -Organization $Organization `
-				-Department $Department -Division $Division -Office $Office -GivenName $UserFirstName -Surname $UserLastName `
-                -UserPrincipalName $TestUserUPN -Title $Title -HomeDrive $HomeDrive  -Server $DomainDC     
+			    -Description "Test User" -AccountPassword (ConvertTo-SecureString -AsPlainText $Password -Force)  `
+			    -HomeDirectory "$HomeDir" -ProfilePath "$ProfilePath" -Company $Company -Organization $Organization -EmailAddress $TestUserUPN `
+				-Department $Department -Division $Division -Office $Office -GivenName $UserFirstName -Surname $UserLastName -CannotChangePassword $CannotChangePasswordSet `
+                -UserPrincipalName $TestUserUPN -Title $Title -HomeDrive $HomeDrive -AllowReversiblePasswordEncryption $ReversibleEncrpytionSet -PasswordNotRequired  $PasswordNotRequiredSet `
+                -PasswordNeverExpires $PasswordNeverExpiresSet -SmartcardLogonRequired $SmartcardLogonRequiredSet `
+                 -Enabled $False -Server $DomainDC
+            Set-ADAccountControl -Identity $TestUserAccount -DoesNotRequirePreAuth $DoesNotRequirePreAuthSet -Server $DomainDC
           }
      }
     While 
@@ -329,6 +437,8 @@ Function Create-ADLabServiceAccounts
     (
         [Parameter(Mandatory=$true)]$Domain,
         [Parameter(Mandatory=$true)]$OUPath,
+        [Parameter(Mandatory=$true)]$NumberOfAccounts,
+        $ServiceAccountPrefix = 'svc-',
         $Password
     )
     
@@ -339,8 +449,20 @@ Function Create-ADLabServiceAccounts
      { $OUPath = 'OU=Service Accounts,OU=Enterprise Services'}
     $UserOUPath = "$OUPath,$($DomainInfo.DistinguishedName)"
 
-    $LabServiceAccountArray = @('svcAGPM','svcAzure','svcBESServer','svcCiscoUnity','svcCommVault','svcCyberArkReconcile','svcExchange','svcExchArchive','svcImanami','svcLDAP','svcPatch','svcQualys','svcQuest','svcSCCM','svcServiceNow','svcSCOM','svcSQL','svcVaronis','svcVMWare','svcVPN','svcWeb')
-    $PasswordArray = @('Qwerty!','Zxcvbnm!','Qwertyuiop!','1234asdf!','qwer1234!')
+     $LabServiceAccountArray = @('Acronis','AGPM','Azure','BESServer','BigFix','Brightmail','CAXOER','CheckPoint','CiscoUnity','Citrix','CitrixPVS','Cloudera','Cognos','CommVault','CyberArkReconcile','Dynamics','Exchange','ExchArchive','FIM','Flume',`
+    'Hadoop','Imanami','Impala','InfoSphere','Insight','JBoss','Kafka','LDAP','Mongo','MagFS','NetIQ','OpenAccess','Oracle','PaloAlto','Patch','Qualys','Quest','SAPBO','SCCM','ServiceNow','SCOM','SharePoint','MSSQL','Varonis','VMWare','VPN','Web')
+
+    [int]$MSOLAccountCount = Get-Random -min 1 -max 5
+    DO
+     {
+        $MSOLLoopCount++
+        $ADGUID = $((new-guid).Guid).SubString(0,13)
+        $EntraConnectServiceAccount = 'MSOL_' + $($ADGUID -replace('-',''))
+        [array]$LabServiceAccountArray += $EntraConnectServiceAccount
+     }
+     WHILE ($MSOLLoopCount -lt $MSOLAccountCount)
+
+    $PasswordArray = @('Qwerty!','Zxcvbnm!','Qwertyuiop!','1234asdf!','qwer1234!','ThisIsASecurePassword!')
     IF ($Password)
       { [switch]$PasswordString = $True }
      ELSE
@@ -348,48 +470,112 @@ Function Create-ADLabServiceAccounts
 
     [int]$SerivceAccountLoopCount = 0
 
-    ForEach ($LabServiceAccountArrayItem in $LabServiceAccountArray)
+    Write-Output "Creating $NumberOfAccounts service accounts..."
+    DO
      { 
         $SerivceAccountLoopCount++
+        $LabServiceAccountArrayItem = $ServiceAccountPrefix + $($LabServiceAccountArray | Get-Random -count 1)
         $LabServiceAccountArrayUPN = $LabServiceAccountArrayItem + '@' + $DomainInfo.DNSRoot
         IF ($PasswordString -eq $False)
          { $Password = $PasswordArray | Get-Random -Count 1 } 
 
-        Write-Host "Creating service account #$SerivceAccountLoopCount of $($LabServiceAccountArray.Count)"
+        Write-Host "Creating service account for $LabServiceAccountArrayItem"
         New-ADUser -Name $LabServiceAccountArrayItem -AccountPassword (ConvertTo-SecureString -AsPlainText $Password -Force) -UserPrincipalName $LabServiceAccountArrayUPN -Path $UserOUPath -Enabled $True -Server $DomainDC 
 
         $LabServiceAccountArrayItemName = $DomainInfo.NetBIOSName + '\' + $LabServiceAccountArrayItem 
         Start-sleep 5
 
-        $ServerNumber = Get-Random -min 100 -max 999
+        $ServerNumber = Get-Random -min 101 -max 999
 
+        $AcronisSPN = "cmd.exe /C setspn -U -S AcronisAgent/TRDACRSRV$ServerNumber $LabServiceAccountArrayItemName"
         $AGPMSPN = "cmd.exe /C setspn -U -S AgpmServer/TRDAGPMSRV$ServerNumber $LabServiceAccountArrayItemName"
-        $EXCHSPN = "cmd.exe /C setspn -U -S exchangeMDB/TRDEXCHSRV$ServerNumber $LabServiceAccountArrayItemName"
-        $MSSQLSPN = "cmd.exe /C setspn -U -S MSSQL/TRDSQLDB$ServerNumber $LabServiceAccountArrayItemName"
+        $BIGFIXSPN = "cmd.exe /C setspn -U -S iem/TRBFSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $CAXOSPN = "cmd.exe /C setspn -U -S CAXOsoftEngine/TRDXOSRV$ServerNumber $LabServiceAccountArrayItemName"
         $CiscoSPN = "cmd.exe /C setspn -U -S CUSESSIONKEYSVR/TRDCiscoSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $CITRIXSPN = "cmd.exe /C setspn -U -S Norskale/TRDCTXSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $CitrixPVSSPN = "cmd.exe /C setspn -U -S PVSSoap/TRDPVSSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $CHECKPOINTSPN = "cmd.exe /C setspn -U -S ckp_pdp/TRDCHKSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $CLOUDERASPN = "cmd.exe /C setspn -U -S sentry/TRDCLDSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $COGNOSSPN = "cmd.exe /C setspn -U -S Cognos/TRDCOGSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $DYNAMICSSPN = "cmd.exe /C setspn -U -S Cognos/TRDDYNSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $EXCHSPN = "cmd.exe /C setspn -U -S exchangeMDB/TRDEXCHSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $FIMSPN = "cmd.exe /C setspn -U -S FIMService/TRDFIMSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $FLUMESPN = "cmd.exe /C setspn -U -S flume/TRDFLMSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $HADOOPSPN = "cmd.exe /C setspn -U -S hdfs/TRDHADOSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $IMPALASPN = "cmd.exe /C setspn -U -S impala/TRDIMPOSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $InfoSphereSPN = "cmd.exe /C setspn -U -S secshd/TRDIMPOSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $JBOSSSPN = "cmd.exe /C setspn -U -S jboss/TRDJBSSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $KAFKASPN = "cmd.exe /C setspn -U -S kafka/TRDKFKSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $MagFSSPN = "cmd.exe /C setspn -U -S MagFS/TRDMAGDB$ServerNumber $LabServiceAccountArrayItemName"
+        $MongoSPN = "cmd.exe /C setspn -U -S mongod/TRDMNGDB$ServerNumber $LabServiceAccountArrayItemName"
+        $MSSQLSPN = "cmd.exe /C setspn -U -S MSSQL/TRDSQLDB$ServerNumber $LabServiceAccountArrayItemName"
+        $OpenAccessSPN = "cmd.exe /C setspn -U -S OA60/TRDOASRV$ServerNumber $LabServiceAccountArrayItemName"
+        $OracleSPN = "cmd.exe /C setspn -U -S oracle/TRDORASRV$ServerNumber $LabServiceAccountArrayItemName"
         $QuestSPN = "cmd.exe /C setspn -U -S NPPolicyEvaluator/TRDQSTSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $SAPSPN = "cmd.exe /C setspn -U -S BOCMS/TRDSAPSRV$ServerNumber $LabServiceAccountArrayItemName"
         $SCOMSPN = "cmd.exe /C setspn -U -S MSOMHSvc/TRDSCOMSRV$ServerNumber $LabServiceAccountArrayItemName"
         $VMwareSPN = "cmd.exe /C setspn -U -S STS/TRDVMW$ServerNumber $LabServiceAccountArrayItemName"
         $WWWSPN = "cmd.exe /C setspn -U -S HTTP/TRDWEB$ServerNumber $LabServiceAccountArrayItemName"
 
-        IF ($LabServiceAccountArrayItem -eq 'svcAGPM')
+        IF ($LabServiceAccountArrayItem -eq 'Acronis')
+         { invoke-expression $AcronisSPN  }
+        IF ($LabServiceAccountArrayItem -eq 'AGPM')
          { invoke-expression $AGPMSPN  }
-        IF ($LabServiceAccountArrayItem -eq 'svcExchange')
+        IF ($LabServiceAccountArrayItem -eq 'BigFix')
+         { invoke-expression $AGPMSPN  }
+        IF ($LabServiceAccountArrayItem -eq 'CAXOER')
+         { invoke-expression $CAXOSPN  }
+        IF ($LabServiceAccountArrayItem -eq 'CheckPoint')
+         { invoke-expression $CHECKPOINTSPN  }
+        IF ($LabServiceAccountArrayItem -eq 'Citrix')
+         { invoke-expression $CITRIXSPN  }
+        IF ($LabServiceAccountArrayItem -eq 'CitrixPVS')
+         { invoke-expression $CitrixPVSSPN  }
+        IF ($LabServiceAccountArrayItem -eq 'Cloudera')
+         { invoke-expression $CLOUDERASPN  }
+        IF ($LabServiceAccountArrayItem -eq 'Cognos')
+         { invoke-expression $COGNOSSPN  }
+        IF ($LabServiceAccountArrayItem -eq 'Dynamics')
+         { invoke-expression $DYNAMICSSPN  }
+        IF ($LabServiceAccountArrayItem -eq 'Exchange')
          { invoke-expression $EXCHSPN  }
-        IF ($LabServiceAccountArrayItem -eq 'svcSQL')
+        IF ($LabServiceAccountArrayItem -eq 'FIM')
+         { invoke-expression $FIMSPN  }
+        IF ($LabServiceAccountArrayItem -eq 'Flume')
+         { invoke-expression $FLUMESPN  }
+        IF ($LabServiceAccountArrayItem -eq 'Hadoop')
+         { invoke-expression $HADOOPSPN  }
+        IF ($LabServiceAccountArrayItem -eq 'Impala')
+         { invoke-expression $IMPALASPN  }
+        IF ($LabServiceAccountArrayItem -eq 'InfoSphere')
+         { invoke-expression $InfoSphereSPN  }
+        IF ($LabServiceAccountArrayItem -eq 'JBoss')
+         { invoke-expression $JBOSSSPN  }
+        IF ($LabServiceAccountArrayItem -eq 'Kafka')
+         { invoke-expression $KAFKASPN  }
+        IF ($LabServiceAccountArrayItem -eq 'MagFS')
+         { invoke-expression $MagFSSPN  }
+        IF ($LabServiceAccountArrayItem -eq 'Mongo')
+         { invoke-expression $MongoSPN  }
+        IF ($LabServiceAccountArrayItem -eq 'SQL')
          { invoke-expression $MSSQLSPN }
-        IF ($LabServiceAccountArrayItem -eq 'svcCiscoUnity')
-         { invoke-expression $CiscoSPN }
-        IF ($LabServiceAccountArrayItem -eq 'svcQuest')
+        IF ($LabServiceAccountArrayItem -eq 'OpenAccess')
+         { invoke-expression $OpenAccessSPN }
+        IF ($LabServiceAccountArrayItem -eq 'Oracle')
+         { invoke-expression $OracleSPN }
+        IF ($LabServiceAccountArrayItem -eq 'Quest')
          { invoke-expression $QuestSPN }
-        IF ($LabServiceAccountArrayItem -eq 'svcSCOM')
+        IF ($LabServiceAccountArrayItem -eq 'SAPBO')
+         { invoke-expression $SAPSPN }
+         IF ($LabServiceAccountArrayItem -eq 'SCOM')
          { invoke-expression $SCOMSPN }
-        IF ($LabServiceAccountArrayItem -eq 'svcVMWare')
+        IF ($LabServiceAccountArrayItem -eq 'VMWare')
          { invoke-expression $VMwareSPN }
-        IF ($LabServiceAccountArrayItem -eq 'svcWeb')
+        IF ($LabServiceAccountArrayItem -eq 'Web')
          { invoke-expression $WWWSPN }
      }
-
+     WHILE
+       ( $SerivceAccountLoopCount -lt $NumberOfAccounts ) 
      Write-Host "Lab service account creation complete"
  }
 
@@ -404,7 +590,8 @@ Function Create-ADLabAdminAccounts
         [Parameter(Mandatory=$true)][string]$AccountOU,
         $Password,
         [string]$AdminNamePrefix,
-        [string]$AdminNameSuffix
+        [string]$AdminNameSuffix,
+        [String]$NameFormatLayout  # FirstL,LastF,FirstNameLastName,LastNameFirstName,Random
     )
     
     $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
@@ -414,7 +601,7 @@ Function Create-ADLabAdminAccounts
     $FirstNameArray = Import-CSV $FirstNameFile
     $LastNameArray = Import-CSV $LastNameFile
 
-    $PasswordArray = @('1q2w3e4r5t6y','q1w2e3r4t5y6','Za!','1234asdf!','qwer1234!')
+    $PasswordArray = @('1q2w3e4r5t6y!','q1w2e3r4t5y6!','1234asdf!','qwer1234!')
     IF ($Password)
       { [switch]$PasswordString = $True }
      ELSE
@@ -427,17 +614,119 @@ Function Create-ADLabAdminAccounts
         $AdminAccountLoopCount++
         Write-Host "Creating Admin account $AdminAccountLoopCount of $NumberOfAdminAccounts"
 
-        $RandomNumber = Get-Random -Minimum 0 -Maximum 999
-        $FirstName = ($FirstNameArray[$RandomNumber]).Name
+        $FirstRandomNumber = Get-Random -Minimum 0 -Maximum 999
+        $LastRandomNumber = Get-Random -Minimum 0 -Maximum 99
+        $FirstName = ($FirstNameArray[$FirstRandomNumber]).Name
+        $LastName = ($LastNameArray[$LastRandomNumber]).Name
+
+        $FirstNameInitial = $FirstName.Substring(0, 1)
+        $LastNameInitial = $LastName.Substring(0, 1)
+
+        $RandomNum1 = Get-Random -minimum 1 -maximum 10
+        $RandomNum2 = Get-Random -minimum 1 -maximum 10
+        $RandomNum3 = Get-Random -minimum 1 -maximum 10
+        $RandomNum4 = Get-Random -minimum 1 -maximum 10
+        $RandomNum5 = Get-Random -minimum 1 -maximum 10
+        $RandomNum6 = Get-Random -minimum 1 -maximum 10
+
+        $AdminAccountName = $AdminNamePrefix + $FirstName + $LastNameInitial 
+                  			  
         IF ($AdminNamePrefix)
-         { $AdminAccountName = $AdminNamePrefix + $FirstName }
+         { 
+            SWITCH ($NameFormatLayout)
+             {
+                'FirstL' { $AdminAccountName = $AdminNamePrefix + $FirstName + $LastNameInitial }
+                'LastF' { $AdminAccountName = $AdminNamePrefix + $FirstNameInitial + $LastName }
+                'FirstNameLastName' { $AdminAccountName = $AdminNamePrefix + $FirstName + $LastName }
+                'LastNameFirstName' { $AdminAccountName = $AdminNamePrefix + $LastName + $FirstName }
+                'Random' { $AdminAccountName = $AdminNamePrefix + $RandomNum1+$RandomNum2+$RandomNum3+$RandomNum4+$RandomNum5+$RandomNum6 }
+                default { $AdminAccountName = $AdminNamePrefix + $FirstName + $LastNameInitial }
+             }
+         }
         IF ($AdminNameSuffix)
-         { $AdminAccountName = $FirstName + $AdminNameSuffix }
+         { 
+            SWITCH ($NameFormatLayout)
+             {
+                'FirstL' { $AdminAccountName = $FirstName + $LastNameInitial + $AdminNameSuffix }
+                'LastF' { $AdminAccountName = $FirstNameInitial + $LastName + $AdminNameSuffix }
+                'FirstNameLastName' { $AdminAccountName = $AdminNamePrefix + $FirstName + $LastName + $AdminNameSuffix }
+                'LastNameFirstName' { $AdminAccountName = $AdminNamePrefix + $LastName + $FirstName + $AdminNameSuffix }
+                'Random' { $AdminAccountName = $RandomNum1+$RandomNum2+$RandomNum3+$RandomNum4+$RandomNum5+$RandomNum6 + $AdminNameSuffix }
+                default { $AdminAccountName = $FirstName + $LastNameInitial + $AdminNameSuffix }
+             }
+         }
         
+        $AdminAccountUPN = $AdminAccountName + "@" + $DomainInfo.DNSRoot
+
         IF ($PasswordString -eq $False)
          { $Password = $PasswordArray | Get-Random -Count 1 }  
 
-        New-ADUser -Name $AdminAccountName -AccountPassword (ConvertTo-SecureString -AsPlainText $Password -Force) -Server $DomainDC -Path $AdminAccountOU -Enabled $True 
+        $ReversibleEncryptionSetting = get-random -min 1 -max 6
+        If ($ReversibleEncryptionSetting -eq 1)
+         { $ReversibleEncrpytionSet = $True }
+        ELSE
+         { $ReversibleEncrpytionSet = $False }
+
+        $PasswordNotRequiredSetting = get-random -min 1 -max 6
+        If ($PasswordNotRequiredSetting -eq 2)
+         { $PasswordNotRequiredSet = $True }
+        ELSE
+         { $PasswordNotRequiredSet = $False }
+
+        $PasswordNeverExpiresSetting = get-random -min 1 -max 6
+        If ($PasswordNeverExpiresSetting -eq 5)
+         { $PasswordNeverExpiresSet = $True }
+        ELSE
+         { $PasswordNeverExpiresSet = $False }
+
+        $KerberosEncyptionDESSetting = get-random -min 1 -max 6
+        If ($KerberosEncyptionDESSetting -eq 3)
+         { $KerberosEncyptionSet = $True }
+        ELSE
+         { $KerberosEncyptionSet = $False }
+
+        $DoesNotRequirePreAuthSetting = get-random -min 1 -max 6
+        If ($DoesNotRequirePreAuthSetting -eq 4)
+         { $DoesNotRequirePreAuthSet = $True }
+        ELSE
+         { $DoesNotRequirePreAuthSet = $False }
+
+        $CannotChangePasswordSetting = get-random -min 1 -max 6
+        If ($CannotChangePasswordSetting -eq 1)
+         { $CannotChangePasswordSet = $True }
+        ELSE
+         { $CannotChangePasswordSet = $False }
+
+        $SmartcardLogonRequiredSetting = get-random -min 1 -max 6
+        If ($SmartcardLogonRequiredSetting -eq 2)
+         { $SmartcardLogonRequiredSet = $True }
+        ELSE
+         { $SmartcardLogonRequiredSet = $False }
+
+        $CannotChangePasswordSetting = get-random -min 1 -max 6
+        If ($CannotChangePasswordSetting -eq 3)
+         { $CannotChangePasswordSet = $True }
+        ELSE
+         { $CannotChangePasswordSet = $False }
+
+        $SmartcardLogonRequiredSetting = get-random -min 1 -max 6
+        If ($SmartcardLogonRequiredSetting -eq 4)
+         { $SmartcardLogonRequiredSet = $True }
+        ELSE
+         { $SmartcardLogonRequiredSet = $False }
+
+        $AdminAccounEmailSetting = get-random -min 1 -max 6
+        If ($AdminAccounEmailSetting -eq 4)
+         { $AdminAccounEmail = $AdminAccountUPN }
+        ELSE
+         { $AdminAccounEmail = $NULL }
+        
+        New-ADUser -Name $AdminAccountName -AccountPassword (ConvertTo-SecureString -AsPlainText $Password -Force) -Path $AdminAccountOU `
+         -Description "Test admin User" -GivenName $FirstName -Surname $LastName -UserPrincipalName $AdminAccountUPN  `
+         -CannotChangePassword $CannotChangePasswordSet -AllowReversiblePasswordEncryption $ReversibleEncrpytionSet -PasswordNotRequired  $PasswordNotRequiredSet `
+         -PasswordNeverExpires $PasswordNeverExpiresSet -SmartcardLogonRequired $SmartcardLogonRequiredSet -EmailAddress $AdminAccounEmail `
+         -Enabled $True -Server $DomainDC
+        Set-ADAccountControl -Identity $AdminAccountName -DoesNotRequirePreAuth $DoesNotRequirePreAuthSet -Server $DomainDC
      }
     While 
      ( $AdminAccountLoopCount -lt $NumberOfAdminAccounts )
@@ -445,9 +734,340 @@ Function Create-ADLabAdminAccounts
     Write-Host "Lab admin account creation complete"
  }
 
+Function Create-ADLabGMSAs
+  {
+    Param
+     (
+        [Parameter(Mandatory=$true)]$Domain,
+        [Parameter(Mandatory=$true)][int]$NumberofGMSAs,
+        [string]$GMSAPrefix = 'gmsa-',
+        [switch]$InstallKDSRootKey = $True
+     )
+    
+    $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
+    $DomainInfo = Get-ADDomain -Server $DomainDC
+    
+    Write-Host "Checking for KDS Root Key Installation across domains..."
+    $KDSRootKeyArray = Get-KdsRootKey
+    ForEach ($KDSRootKeyArrayItem in $KDSRootKeyArray)
+     { 
+        $KDSRootKeyDomainArray = @()
+        $DC1 = $KDSRootKeyArrayItem.DomainController -Replace('CN=',"") 
+        $DC2 = $DC1 -Replace (',OU=Domain Controllers',"")
+        $DomainDC = $DC2 -Replace (',DC=',".")
+        $KDSDomainArray = Get-ADDomain -Server $DomainDC
+        $KDSDomainArray | Add-Member -MemberType NoteProperty -Name KDSCreationTime -Value $KDSRootKeyArrayItem.CreationTime -Force
+        [array]$KDSRootKeyDomainArray += $KDSDomainArray
+     }
+
+    $KDSDomainCheck = $KDSRootKeyDomainArray | Where {$_.DNSRoot -eq $Domain}
+    IF ( (!$KDSDomainCheck) -AND ($InstallKDSRootKey -eq $True) )
+     { 
+        write-host "Configuring KDS root key for $Domain"
+        Add-KdsRootKey -EffectiveImmediately 
+        Start-Sleep -Seconds 30
+     }
+    ELSE
+     { Write-Host "KDS Root Key already installed for $Domain" }
+    
+      $LabServiceAccountArray = @('Acronis','AGPM','Azure','BESServer','BigFix','Brightmail','CAXOER','CheckPoint','CiscoUnity','Citrix','CitrixPVS','Cloudera','Cognos','CommVault','CyberArkReconcile','Dynamics','Exchange','ExchArchive','FIM','Flume',`
+    'Hadoop','Imanami','Impala','InfoSphere','Insight','JBoss','Kafka','LDAP','Mongo','MagFS','NetIQ','OpenAccess','Oracle','PaloAlto','Patch','Qualys','Quest','SAPBO','SCCM','ServiceNow','SCOM','SharePoint','MSSQL','Varonis','VMWare','VPN','Web')
+   
+    $GMSADoWhileLoop = 0
+    DO
+    {
+        Write-Host "Creating GMSA account $GMSADoWhileLoop of $NumberofGMSAs"
+        $GMSADoWhileLoop++
+
+        $GMSANumber = Get-Random -Minimum 1 -Maximum 10 
+
+        $GMSAAccount = $($LabServiceAccountArray | Get-Random -count 1)
+        $GMSAAccountName = $GMSAPrefix + $GMSAAccount 
+        $GmsaDescription = "Account for $GMSAAccount "
+        $GmsaDNSHostName = 'SRV' + $GMSAAccount + '0' + $GMSANumber + '.' + $Domain
+        $GmsaGroupName = $GMSAAccountName + '0' + $GMSANumber
+
+        New-ADGroup -Name $GmsaGroupName -DisplayName $GmsaGroupName -GroupScope Global
+
+        New-ADServiceAccount -Name $GMSAAccountName -Description $GmsaDescription -DNSHostName $GmsaDNSHostName -ManagedPasswordIntervalInDays 30 -PrincipalsAllowedToRetrieveManagedPassword $GmsaGroupName -Enabled $True -PassThru
+     }
+     WHILE
+      ($GMSADoWhileLoop -lt $NumberofGMSAs)
+
+    Write-Host "Created $NumberofGMSAs GMSAs in $Domain"
+
+  }
+
+Function Create-ADLabWindowsWorkstations
+ {
+    Param
+     (
+        [Parameter(Mandatory=$true)]$Domain,
+        [Parameter(Mandatory=$true)][int]$NumberOfWorkstations,
+        [Parameter(Mandatory=$true)][string]$ComputerOU
+     )
+
+    $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
+    $DomainInfo = Get-ADDomain -Server $DomainDC
+    
+    $WorkstationOperatingSystemArray = @('Windows XP Professional','Windows 7 Enterprise','Windows 7 Professional','Windows 7 Ultimate',  `
+    'Windows 8 Enterprise','Windows 8.1 Enterprise', `
+    'Windows 10 Enterprise','Windows 10 Professional', ,'Windows 10 Enterprise 2016 LTSB','Windows 10 Enterprise LTSC', `
+    'Windows 10 Enterprise','Windows 10 Pro', ,'Windows 10 Enterprise 2016 LTSB','Windows 10 Enterprise LTSC', `
+    'Windows 11 Business','Windows 11 Professional','Windows 11 Enterprise','Windows 11 Enterprise LTSC', `
+    'Windows 11 Professional','Windows 11 Enterprise','Windows 11 Enterprise LTSC')
+
+    $ComputerOUPath = $ComputerOU + ',' + $DomainInfo.DistinguishedName
+
+    $DoWhileWorkstationLoop = 0
+    DO
+     {
+        $DoWhileWorkstationLoop++
+        Write-Host "Creating Windows Workstation computer account $DoWhileWorkstationLoop of $NumberOfWorkstations"
+        
+        $ComputerOperatingSystem = $($WorkstationOperatingSystemArray | Get-Random -count 1)
+        $ComputerNumber = Get-Random -Minimum 100 -Maximum 999
+        $ComputerAlpha = -join ((65..90) | Get-Random -Count 3 | % {[char]$_})
+        $ComputerName = 'WRK' + ($DomainInfo.Name).ToUpper() + $ComputerAlpha + $ComputerNumber
+
+        New-ADComputer -Name $ComputerName -OperatingSystem $ComputerOperatingSystem -Path $ComputerOUPath -Enabled $True -Server $DomainDC
+
+     }
+     WHILE
+      ( $DoWhileWorkstationLoop -lt $NumberOfWorkstations )
+ }
+ 
+ Function Create-ADLabWindowsServers
+ {
+    Param
+     (
+        [Parameter(Mandatory=$true)]$Domain,
+        [int]$NumberOfservers,
+        [string]$ComputerOU
+     )
+
+    $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
+    $DomainInfo = Get-ADDomain -Server $DomainDC
+    
+    $WindowsServerOperatingSystemArray = @('Windows Server 2003', `
+    'Windows Server 2008 Enterprise',
+    'Windows Server 2008 R2 Standard','Windows Server 2008 R2 Enterprise', 'Windows Server 2008 R2 Datacenter'
+    'Windows Server 2012 Standard','Windows Server 2012 Enterprise', `
+    'Windows Server 2012 R2 Standard','Windows Server 2012 R2 Enterprise', ` 
+    'Windows Server 2016 Standard','Windows Server 2019 Standard','Windows Server 2019 Datacenter', 
+    'Windows Server 2022 Standard','Windows Server 2022 Enterprise','Windows Server 2025 Standard','Windows Server 2025 Enterprise')
+
+    $ComputerOUPath = $ComputerOU + ',' + $DomainInfo.DistinguishedName
+
+    $DoWhileServerLoop = 0
+    DO
+     {
+        $DoWhileServerLoop++
+        Write-Host "Creating Windows Server computer account $DoWhileServerLoop of $NumberOfservers"
+        
+        $ComputerOperatingSystem = $($WindowsServerOperatingSystemArray | Get-Random -count 1)
+        $ComputerNumber = Get-Random -Minimum 100 -Maximum 999
+        $ComputerAlpha = -join ((65..90) | Get-Random -Count 3 | % {[char]$_})
+        $ComputerName = 'SRV' + ($DomainInfo.Name).ToUpper() + $ComputerAlpha + $ComputerNumber
+
+        New-ADComputer -Name $ComputerName -OperatingSystem $ComputerOperatingSystem -Path $ComputerOUPath -Enabled $True -Server $DomainDC
+
+     }
+     WHILE
+      ( $DoWhileServerLoop -lt $NumberOfservers )
+ }
+
+ Function Create-ADLabComputers
+ {
+    Param
+     (
+        [Parameter(Mandatory=$true)]$Domain,
+        [int]$NumberOfComputers,
+        [string]$ComputerOU
+     )
+
+    $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
+    $DomainInfo = Get-ADDomain -Server $DomainDC
+    
+    $NonWindowsOperatingSystemArray = @(
+    'Acropolis File Server OS','AIX','CentOS','CentOS Linux release 7.5.1804 (Core)','Centrify','Cisco Identity Services Engine',
+    'Cohesity','Darwin','Debian','Data Domain OS','EMC Celerra File Server','EMC File Server',"Enterprise Linux Enterprise Linux Server release 5.11 (Carthage)",
+    "Enterprise Linux Enterprise Linux Server release 5.5 (Carthage)","Enterprise Linux Enterprise Linux Server release 5.7 (Carthage)",
+    'GuardianOS','HP-UX','Hyper-V','Kazeon Information Server Software','LikeWise Identity','LikeWise Open','Linux',
+    'Mac OS X','NetApp Release 8.3.1','NetApp Release 8.3.2P2','NetApp Release 8.3.2P4','NetApp Release 9.1P2',
+    'NetApp Release 9.1P8','NetApp Release 9.2','NetApp Release 9.3P3','NetApp Release 9.3P4','NetApp Release 9.3P8',
+    'NetApp Release 9.4','NetApp Release 9.5P1','NetApp Release 9.5P2','NetApp Release 9.5P3','NetApp Release 9.5P4',
+    'NetApp Release 9.5P6','NetApp Release 9.5P10','NetApp Release 9.7P3','NetApp Release 9.7P5','Nutanix Files',
+    'OneFS','OnTap','ONTAP 8.1','Oracle Linux',"Oracle Linux Server release 6.1","Oracle Linux Server release 6.10",
+    "Oracle Linux Server release 6.5","Oracle Linux Server release 6.7","Oracle Linux Server release 6.8",
+    "Oracle Linux Server release 6.9","Oracle Linux Server release 7.4","Oracle Linux Server release 7.5",
+    "Oracle Linux Server release 7.6","Oracle Linux Server release 7.7",'PBIS','redhatlinuxgnu',
+    'Red Hat Enterprise Linux',"Red Hat Enterprise Linux Server release 5.11 (Tikanga)",
+    "Red Hat Enterprise Linux Server release 5.7 (Tikanga)","Red Hat Enterprise Linux Server release 6.10 (Santiago)",
+    "Red Hat Enterprise Linux Server release 6.4 (Santiago)","Red Hat Enterprise Linux Server release 6.6 (Santiago)",
+    "Red Hat Enterprise Linux Server release 6.7 (Santiago)","Red Hat Enterprise Linux Server release 6.8 (Santiago)",
+    "Red Hat Enterprise Linux Server release 6.9 (Santiago)","Red Hat Enterprise Linux Server release 7.1 (Maipo)",
+    "Red Hat Enterprise Linux Server release 7.3 (Maipo)","Red Hat Enterprise Linux Server release 7.4 (Maipo)",
+    "Red Hat Enterprise Linux Server release 7.5 (Maipo)","Red Hat Enterprise Linux Server release 7.6 (Maipo)",
+    "Red Hat Enterprise Linux Server release 7.7 (Maipo)","Red Hat Enterprise Linux Server release 7.8 (Maipo)",
+    'Samba','SLES','SunOS','Solaris','SUSE Linux',"SUSE Linux Enterprise Server 11 (x86_64)",
+    "SUSE Linux Enterprise Server 12 SP4",'OneFS','Ubuntu 16.04.3 LTS','unknown')
+
+    $ComputerOUPath = $ComputerOU + ',' + $DomainInfo.DistinguishedName
+
+    $DoWhileServerLoop = 0
+    DO
+     {
+        $DoWhileServerLoop++
+        Write-Host "Creating Non-Windows computer account $DoWhileServerLoop of $NumberOfservers"
+        
+        $ComputerOperatingSystem = $($NonWindowsOperatingSystemArray | Get-Random -count 1)
+        $ComputerNumber = Get-Random -Minimum 100 -Maximum 999
+        $ComputerAlpha = -join ((65..90) | Get-Random -Count 3 | % {[char]$_})
+        $ComputerName = 'SRV' + ($DomainInfo.Name).ToUpper() + $ComputerAlpha + $ComputerNumber
+
+        New-ADComputer -Name $ComputerName -OperatingSystem $ComputerOperatingSystem -Path $ComputerOUPath -Enabled $True -Server $DomainDC
+
+     }
+     WHILE
+      ( $DoWhileServerLoop -lt $NumberOfservers )
+ }
+
+Function Create-ADLabFGPPs
+ {
+    Param
+     (
+        $Domain,
+        $NumberOfFGPPs = 10,
+        $AdminGroupOU = 'OU=Groups,OU=Enterprise Services'
+     )
+    
+    $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
+    $DomainInfo = Get-ADDomain -Server $DomainDC
+
+    $AdminGroupsPathDN = $AdminGroupOU + $DomainInfo.DistinguishedName
+
+    [int]$FGPPDOWhileLoop = 0
+    Do
+     {
+        $FGPPDOWhileLoop++
+        Write-Host "Create Fine-Grained Password Policies in $ForestDomainItem (FGPPDOWhileLoop of $NumberOfFGPPs)..." -ForegroundColor Cyan
+
+        $RandomNumber = Get-Random -Minimum 11 -Maximum 49
+        $FGPPGroupName = "$(($DomainInfo.Name).ToUpper())-FGPP-$RandomNumber-Group"
+        $FGPPName = "$(($DomainInfo.Name).ToUpper())-FGPP-$RandomNumber"
+        
+        New-ADGroup -Name $FGPPGroupName -SamAccountName $FGPPGroupName -GroupCategory Security -GroupScope Universal -DisplayName $FGPPGroupName -Path $AdminGroupsPathDN -Server $DomainDC  
+        Start-Sleep -Seconds 5
+
+        $FGPPGroupDN = (Get-ADGroup $FGPPGroupName -Server $DomainDC).DistinguishedName
+        New-ADFineGrainedPasswordPolicy -Name $FGPPName -DisplayName $FGPPName -Server $DomainDC -Precedence 100 -ComplexityEnabled $true -ReversibleEncryptionEnabled $false -PasswordHistoryCount 10 -MinPasswordLength 12 -MinPasswordAge 3.00:00:00 -MaxPasswordAge 30.00:00:00 -LockoutThreshold 3 -LockoutObservationWindow 0.00:25:00 -LockoutDuration 0.00:30:00 
+        Add-ADFineGrainedPasswordPolicySubject $FGPPName -Subjects $FGPPGroupDN -Server $DomainDC 
+      
+      }
+    WHILE
+     ( $FGPPDOWhileLoop -lt $NumberOfFGPPs ) 
+ }
+
+Function Set-SPNDefaultAdminAccount
+ {
+    Param
+     (
+        $Domain,
+        $ServerOU = 'OU=Servers,OU=Enterprise Services'
+     )
+
+    $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
+    $DomainInfo = Get-ADDomain -Server $DomainDC
+
+    Write-Host "Add SPN to default Administrator Account in $ForestDomainItem ..." -ForegroundColor Cyan
+    $ServerName = 'GammaDB' + (Get-Random -Minimum 1 -Maximum 50)
+    $ServerOUPath = $ServerOU + ',' + $DomainInfo.DistinguishedName
+    New-ADComputer -Name $ServerName -SamAccountName $ServerName -Path $ServerOUPath -Server $DomainDC 
+    $SPN = 'MSSQLSvc/' + $ServerName + ':1433'
+    [string]$DefaultDomainAdminSID = $DomainInfo.DomainSID.Value + '-500'
+    $DefaultDomainAdministrator = Get-ADObject -Identity $((Get-ADUser $DefaultDomainAdminSID -Server $DomainDC).DistinguishedName) -Server $DomainDC
+    TRY
+        { Set-ADObject -Identity $DefaultDomainAdministratorDN -add @{serviceprincipalname=$SPN} -Server $DomainDC } 
+    CATCH
+        { Write-Warning "Unable to set the SPN $SPN on the default Administrator account $DefaultDomainAdministratorDN using the DC $DomainDC" }  
+ }
+
+Function Invoke-RandomizeAdmins
+ {
+    Param
+     (
+        $Domain,
+        $AdminOU,
+        $ADAdminGroups
+     )
+
+    $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
+    $DomainInfo = Get-ADDomain -Server $DomainDC
+
+    $AdminOUPath = $AdminOU + ',' + $DomainInfo.DistinguishedName
+
+    [array]$AdminUserArray = Get-ADUser -Filter * -SearchBase $AdminOUPath
+
+    Write-Host "Discovered $($AdminUserArray.Count) Admin Accounts in $AdminOUPath"
+
+    ForEach ($ADAdminGroupItem in $ADAdminGroups)
+     {
+        $DoWhileLoopTotalCount = Get-Random -Min 1 -Max $($AdminUserArray.Count)
+        [int]$DoWhileLoopCount = 0
+        
+        Write-Host "Adding $DoWhileLoopTotalCount Admin Accounts to the privileged group $ADAdminGroupItem"
+
+        DO
+         {
+            $DoWhileLoopCount++
+            $AdminAccountDN = ($AdminUserArray | Get-Random -Count 1).DistinguishedName
+            Add-ADGroupMember -Identity $ADAdminGroupItem -Members $AdminAccountDN -Server $DomainDC
+
+         }
+        WHILE ($DoWhileLoopCount -le $DoWhileLoopTotalCount)
+     }
+ }
+
+Function Invoke-RandomizeServiceAccountAdmins
+ {
+    Param
+     (
+        $Domain,
+        $ServiceAccountOU,
+        $MaxServiceAccountsInAGroup,
+        $ADAdminGroups 
+      )
+
+    $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
+    $DomainInfo = Get-ADDomain -Server $DomainDC
+
+    $ServiceAccountOUPath = $ServiceAccountOU + ',' + $DomainInfo.DistinguishedName
+
+    [array]$ServiceAccountArray = Get-ADUser -Filter * -SearchBase $ServiceAccountOUPath
+
+    Write-Host "Discovered $($ServiceAccountArray.Count) Service Accounts in $ServiceAccountOUPath"
+
+    ForEach ($ADAdminGroupItem in $ADAdminGroups)
+     {
+        $DoWhileLoopTotalCount = Get-Random -Min 1 -Max $MaxServiceAccountsInAGroup
+        [int]$DoWhileLoopCount = 0
+        
+        Write-Host "Adding $DoWhileLoopTotalCount Service Accounts to the privileged group $ADAdminGroupItem"
+
+        DO
+         {
+            $DoWhileLoopCount++
+            $ServiceAccountAccountDN = ($ServiceAccountArray | Get-Random -Count 1).DistinguishedName
+            Add-ADGroupMember -Identity $ADAdminGroupItem -Members $ServiceAccountAccountDN -Server $DomainDC
+
+         }
+        WHILE ($DoWhileLoopCount -le $DoWhileLoopTotalCount)
+     }
+ }
 
 
-#################
+################################################
 
 
 IF ($CreateTopLevelOUs -eq $True)
@@ -467,7 +1087,7 @@ IF ($RenameDomainAdministrator -eq $True)
 
 IF ($CreateADLabUsers -eq $True)
   {
-    Create-ADLabUsers -Domain $Domain -NumberOfADUserAccounts '20' -FirstNameFile 'C:\Scripts\FirstNames.csv' -LastNameFile 'C:\Scripts\LastNames.csv' -UserOU "Domain Users" -EnableAccounts
+    Create-ADLabUsers -Domain $Domain -NumberOfADUserAccounts '20' -FirstNameFile 'C:\Scripts\FirstNames.csv' -LastNameFile 'C:\Scripts\LastNames.csv' -UserOU "OU=Domain Users" -EnableAccounts
   }
 
 IF ($CreateADLabGroups -eq $True)
@@ -477,7 +1097,7 @@ IF ($CreateADLabGroups -eq $True)
 
 IF ($CreateADLabServiceAccounts -eq $True)
   {
-    Create-ADLabServiceAccounts -Domain $Domain -OUPath 'OU=Service Accounts,OU=Enterprise Services'
+    Create-ADLabServiceAccounts -Domain $Domain -NumberOfAccounts 10 -OUPath 'OU=Service Accounts,OU=Enterprise Services'
   }
 
 IF ($CreateADLabAdminAccounts -eq $True)
@@ -485,3 +1105,44 @@ IF ($CreateADLabAdminAccounts -eq $True)
     Create-ADLabAdminAccounts -Domain $Domain -AdminNamePrefix 'Admin' -NumberOfAdminAccounts '10' -FirstNameFile 'C:\Scripts\FirstNames.csv' -LastNameFile 'C:\Scripts\LastNames.csv' -AccountOU 'OU=Accounts,OU=AD Administration'
   }
 
+IF ($CreateADLabGMSAs -eq $True) ###
+  {
+    Create-ADLabGMSAs -Domain $Domain -AdminNamePrefix 'Admin' -NumberofGMSAs '10' -GMSAPrefix 'gmsa-'
+  }
+
+IF ($CreateADLabWorkstations -eq $True)
+  {
+    Create-ADLabWindowsWorkstations -Domain $Domain -NumberOfWorkstations '20' -ComputerOU 'OU=Workstations'
+  }
+
+IF ($CreateADLabServers -eq $True)
+  {
+    Create-ADLabWindowsServers -Domain $Domain -NumberOfservers '20' -ComputerOU 'OU=Servers,OU=Enterprise Services'
+  }
+
+IF ($CreateADLabComputers -eq $True)
+  {
+    Create-ADLabComputers -Domain $Domain -NumberOfComputers '20' -ComputerOU 'OU=Servers,OU=Enterprise Services'
+  }
+
+IF ($CreateADLabFGPPs -eq $True) ###
+  {
+    Create-ADLabFGPPs -Domain $Domain -NumberOfFGPPs 10 -AdminGroupOU 'OU=Groups,OU=Enterprise Services'
+  }
+
+IF ($SetSPNDefaultAdminAccount -eq $True) ###
+  {
+    Set-SPNDefaultAdminAccount -Domain $Domain -ServerOU 'OU=Servers,OU=Enterprise Services'
+  }
+
+IF ($InvokeRandomizeAdmins -eq $True) 
+  {
+    Invoke-RandomizeAdmins -Domain $Domain -AdminOU 'OU=Service Accounts,OU=Enterprise Services' -ADAdminGroups @('Administrators','Account Operators','Backup Operators','DNSAdmins','Domain Admins','Print Operators','Server Operators')
+  }
+
+IF ($InvokeRandomizeServiceAccountAdmins -eq $True) 
+  {
+    Invoke-RandomizeServiceAccountAdmins -Domain $Domain -MaxServiceAccountsInAGroup 10 -ServiceAccountOU 'OU=Service Accounts,OU=Enterprise Services' -ADAdminGroups @('Administrators','Account Operators','Backup Operators','DNSAdmins','Domain Admins','Print Operators','Server Operators')
+  }
+
+  
