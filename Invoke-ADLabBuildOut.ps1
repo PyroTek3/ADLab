@@ -81,22 +81,22 @@ Function Create-TopLevelOUs
         IF ($TopLevelOUsItem -like "*Admin*")
          {
             Write-Host "Creating OUs under the $TopLevelOUsItem top-level OU"
-            New-ADOrganizationalUnit 'Accounts' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False
-            New-ADOrganizationalUnit 'Computers' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False
-            New-ADOrganizationalUnit 'Groups' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False
-            New-ADOrganizationalUnit 'Service Accounts' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False
+            New-ADOrganizationalUnit 'Accounts' -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False -Server $DomainDC
+            New-ADOrganizationalUnit 'Computers' -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False -Server $DomainDC
+            New-ADOrganizationalUnit 'Groups' -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False -Server $DomainDC
+            New-ADOrganizationalUnit 'Service Accounts' -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False -Server $DomainDC
          }
         IF ($TopLevelOUsItem -eq "Enterprise Services")
          {
             Write-Host "Creating OUs under the $TopLevelOUsItem top-level OU"
-            New-ADOrganizationalUnit 'Entra ID' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False
-            New-ADOrganizationalUnit 'Exchange' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False
-            New-ADOrganizationalUnit 'Groups' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False 
-            New-ADOrganizationalUnit 'SCCM' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False
-            New-ADOrganizationalUnit 'Servers' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False
-            New-ADOrganizationalUnit 'Service Accounts' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False
-            New-ADOrganizationalUnit 'VMware' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False
-            New-ADOrganizationalUnit 'Web Servers' -Server $DomainDC -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False
+            New-ADOrganizationalUnit 'Entra ID' -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False -Server $DomainDC
+            New-ADOrganizationalUnit 'Exchange'-Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False -Server $DomainDC
+            New-ADOrganizationalUnit 'Groups' -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False  -Server $DomainDC
+            New-ADOrganizationalUnit 'SCCM' -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False -Server $DomainDC
+            New-ADOrganizationalUnit 'Servers' -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False -Server $DomainDC
+            New-ADOrganizationalUnit 'Service Accounts' -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False -Server $DomainDC
+            New-ADOrganizationalUnit 'VMware' -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False -Server $DomainDC
+            New-ADOrganizationalUnit 'Web Servers' -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False -Server $DomainDC
          }
      }   
  }
@@ -150,10 +150,10 @@ Function Create-BranchOfficeOUs
     ForEach ($TopLevelOUArrayItem in $TopLevelOUArray)
      { 
         Write-Host "Creating the OU $TopLevelOUArrayItem in $domain"
-        New-ADOrganizationalUnit $TopLevelOUArrayItem -Path $OUPath -Server $DomainDC -ProtectedFromAccidentalDeletion $False 
+        New-ADOrganizationalUnit $TopLevelOUArrayItem -Path $OUPath -ProtectedFromAccidentalDeletion $False -Server $DomainDC
         Start-Sleep 3
         ForEach ($TopLevelOUStructureArrayItem in $TopLevelOUStructureArray)
-         { New-ADOrganizationalUnit $TopLevelOUStructureArrayItem -Path "OU=$TopLevelOUArrayItem,$OUPath" -Server $DomainDC -ProtectedFromAccidentalDeletion $False }
+         { New-ADOrganizationalUnit $TopLevelOUStructureArrayItem -Path "OU=$TopLevelOUArrayItem,$OUPath" -ProtectedFromAccidentalDeletion $False -Server $DomainDC }
      }
      Write-Host "Top-level OU creation complete"    
  }
@@ -432,15 +432,23 @@ Function Create-ADLabGroups
  {
     Param
      (
-        [Parameter(Mandatory=$true)]$Domain
+        [Parameter(Mandatory=$true)]$Domain,
+        [Parameter(Mandatory=$true)][string]$GroupOU,
+        $Groups
      )
     
     $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
+    $DomainInfo = Get-ADDomain -Server $DomainDC
 
-    $ADGroupArray = @('Workstation Admins','Server Admins')
+    $GroupOUPath = $GroupOU + ',' + $DomainInfo.DistinguishedName
+
+    IF ($Groups)
+     { $ADGroupArray = $Groups} 
+    ELSE
+     { $ADGroupArray = @('Workstation Admins','Server Admins') }
 
     ForEach ($ADGroupArrayItem in $ADGroupArray)
-     { New-ADGroup -Name $ADGroupArrayItem -GroupCategory "Security" -GroupScope "Global" -Server $DomainDC }
+     { New-ADGroup -Name $ADGroupArrayItem -GroupCategory "Security" -GroupScope "Global" -Path $GroupOUPath -Server $DomainDC }
 
     Write-Host "Lab group creation complete"
   }
@@ -752,47 +760,54 @@ Function Create-ADLabGMSAs
  {
     Param
      (
-        [Parameter(Mandatory=$true)]$Domain,
+        [Parameter(Mandatory=$true)][string]$Domain,
         [Parameter(Mandatory=$true)][int]$NumberofGMSAs,
+        [Parameter(Mandatory=$true)][string]$GroupOU,
         [string]$GMSAPrefix,
-        [switch]$InstallKDSRootKey
+        [switch]$InstallKDSRootKey,
+        [switch]$SkipKDSRootKeyCheck
      )
     
     $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
     $DomainInfo = Get-ADDomain -Server $DomainDC
-    
-    Write-Host "Checking for KDS Root Key Installation across domains..."
-    $KDSRootKeyArray = Get-KdsRootKey
-    ForEach ($KDSRootKeyArrayItem in $KDSRootKeyArray)
-     { 
-        $KDSRootKeyDomainArray = @()
-        $DC1 = $KDSRootKeyArrayItem.DomainController -Replace('CN=',"") 
-        $DC2 = $DC1 -Replace (',OU=Domain Controllers',"")
-        $DomainDC = $DC2 -Replace (',DC=',".")
-        $KDSDomainArray = Get-ADDomain -Server $DomainDC
-        $KDSDomainArray | Add-Member -MemberType NoteProperty -Name KDSCreationTime -Value $KDSRootKeyArrayItem.CreationTime -Force
-        [array]$KDSRootKeyDomainArray += $KDSDomainArray
-     }
 
-    $KDSDomainCheck = $KDSRootKeyDomainArray | Where {$_.DNSRoot -eq $Domain}
-    IF ( (!$KDSDomainCheck) -AND ($InstallKDSRootKey -eq $True) )
-     { 
-        write-host "Configuring KDS root key for $Domain"
-        Add-KdsRootKey -EffectiveImmediately 
-        Start-Sleep -Seconds 30
-     }
+    $GroupOUPath = $GroupOU + ',' + $DomainInfo.DistinguishedName
+    IF ($SkipKDSRootKeyCheck -eq $True)
+     { Write-Host "Skipping KDS Root Key Installation check across domains." }
     ELSE
-     { Write-Host "KDS Root Key already installed for $Domain" }
-    
+     {
+        Write-Host "Checking for KDS Root Key Installation across domains..."
+        $KDSRootKeyArray = Get-KdsRootKey
+        $KDSRootKeyDomainArray = @()
+        ForEach ($KDSRootKeyArrayItem in $KDSRootKeyArray)
+         { 
+            $DC1 = $KDSRootKeyArrayItem.DomainController -Replace('CN=',"") 
+            $DC2 = $DC1 -Replace (',OU=Domain Controllers',"")
+            $DomainDC = $DC2 -Replace (',DC=',".")
+            $KDSDomainArray = Get-ADDomain -Server $DomainDC
+            $KDSDomainArray | Add-Member -MemberType NoteProperty -Name KDSCreationTime -Value $KDSRootKeyArrayItem.CreationTime -Force
+            [array]$KDSRootKeyDomainArray += $KDSDomainArray
+         }
+
+        $KDSDomainCheck = $KDSRootKeyDomainArray | Where {$_.DNSRoot -eq $Domain}
+        IF ( (!$KDSDomainCheck) -AND ($InstallKDSRootKey -eq $True) )
+         { 
+            write-host "Configuring KDS root key for $Domain"
+            Invoke-Command -ComputerName $DomainDC -ScriptBlock { Add-KdsRootKey -EffectiveImmediately } 
+            Start-Sleep -Seconds 120
+         }
+        ELSE
+         { Write-Host "KDS Root Key already installed for $Domain" }
+     }
       $LabServiceAccountArray = @('Acronis','AGPM','Azure','BESServer','BigFix','Brightmail','CAXOER','CheckPoint','CiscoUnity','Citrix','CitrixPVS','Cloudera','Cognos','CommVault','CyberArkReconcile','Dynamics','Exchange','ExchArchive','FIM','Flume',`
     'Hadoop','Imanami','Impala','InfoSphere','Insight','JBoss','Kafka','LDAP','Mongo','MagFS','NetIQ','OpenAccess','Oracle','PaloAlto','Patch','Qualys','Quest','SAPBO','SCCM','ServiceNow','SCOM','SharePoint','MSSQL','Varonis','VMWare','VPN','Web')
    
     $GMSADoWhileLoop = 0
     DO
     {
-        Write-Host "Creating GMSA account $GMSADoWhileLoop of $NumberofGMSAs"
         $GMSADoWhileLoop++
-
+        Write-Host "Creating GMSA account $GMSADoWhileLoop of $NumberofGMSAs"
+        
         $GMSANumber = Get-Random -Minimum 1 -Maximum 10 
 
         $GMSAAccount = $($LabServiceAccountArray | Get-Random -count 1)
@@ -801,9 +816,9 @@ Function Create-ADLabGMSAs
         $GmsaDNSHostName = 'SRV' + $GMSAAccount + '0' + $GMSANumber + '.' + $Domain
         $GmsaGroupName = $GMSAAccountName + '0' + $GMSANumber
 
-        New-ADGroup -Name $GmsaGroupName -DisplayName $GmsaGroupName -GroupScope Global
+        New-ADGroup -Name $GmsaGroupName -DisplayName $GmsaGroupName -GroupScope Global -Path $GroupOUPath -Server $DomainDC
 
-        New-ADServiceAccount -Name $GMSAAccountName -Description $GmsaDescription -DNSHostName $GmsaDNSHostName -ManagedPasswordIntervalInDays 30 -PrincipalsAllowedToRetrieveManagedPassword $GmsaGroupName -Enabled $True -PassThru
+        New-ADServiceAccount -Name $GMSAAccountName -Description $GmsaDescription -DNSHostName $GmsaDNSHostName -ManagedPasswordIntervalInDays 30 -PrincipalsAllowedToRetrieveManagedPassword $GmsaGroupName -Enabled $True -PassThru -Server $DomainDC
      }
      WHILE
       ($GMSADoWhileLoop -lt $NumberofGMSAs)
@@ -974,7 +989,7 @@ Function Create-ADLabFGPPs
         New-ADGroup -Name $FGPPGroupName -SamAccountName $FGPPName -GroupCategory Security -GroupScope Universal -DisplayName $FGPPGroupName -Path $AdminGroupsPathDN -Server $DomainDC  
         Start-Sleep -Seconds 5
 
-        New-ADFineGrainedPasswordPolicy -Name $FGPPName -DisplayName $FGPPName -Server $DomainDC -Precedence 100 -ComplexityEnabled $true -ReversibleEncryptionEnabled $false -PasswordHistoryCount 10 -MinPasswordLength 12 -MinPasswordAge 3.00:00:00 -MaxPasswordAge 30.00:00:00 -LockoutThreshold 3 -LockoutObservationWindow 0.00:25:00 -LockoutDuration 0.00:30:00 
+        New-ADFineGrainedPasswordPolicy -Name $FGPPName -DisplayName $FGPPName -Precedence 100 -ComplexityEnabled $true -ReversibleEncryptionEnabled $false -PasswordHistoryCount 10 -MinPasswordLength 12 -MinPasswordAge 3.00:00:00 -MaxPasswordAge 30.00:00:00 -LockoutThreshold 3 -LockoutObservationWindow 0.00:25:00 -LockoutDuration 0.00:30:00 -Server $DomainDC 
        #  Add-ADFineGrainedPasswordPolicySubject $FGPPName -Subjects $FGPPGroupName -Server $DomainDC 
       }
     WHILE
@@ -1173,7 +1188,7 @@ Function Add-KerberosDelegation
          { $TrustedToAuthForDelegationBoolean = $False }
         ELSE
          { $TrustedToAuthForDelegationBoolean = $True  } # Enables Constrained Delegation Protocol Transition
-        Set-ADAccountControl -Identity $ServiceAccountDN -Server $DomainDC -TrustedForDelegation $TrustedForDelegationBoolean -TrustedToAuthForDelegation $TrustedToAuthForDelegationBoolean
+        Set-ADAccountControl -Identity $ServiceAccountDN -TrustedForDelegation $TrustedForDelegationBoolean -TrustedToAuthForDelegation $TrustedToAuthForDelegationBoolean -Server $DomainDC
     
         IF ($SPNArray.Count -lt 10)
           { $DelegateToSPN = $SPNArray  | Get-Random -Count 1 } 
@@ -1212,7 +1227,7 @@ IF ($CreateADLabUsers -eq $True)
 
 IF ($CreateADLabGroups -eq $True)
   {
-    Create-ADLabGroups -Domain $Domain
+    Create-ADLabGroups -Domain $Domain -GroupOU 'OU=Groups,OU=Enterprise Services'
   }
 
 IF ($CreateADLabServiceAccounts -eq $True)
@@ -1227,7 +1242,7 @@ IF ($CreateADLabAdminAccounts -eq $True)
 
 IF ($CreateADLabGMSAs -eq $True) 
   {
-    Create-ADLabGMSAs -Domain $Domain -NumberofGMSAs '10' -GMSAPrefix 'gmsa-'
+    Create-ADLabGMSAs -Domain $Domain -NumberofGMSAs '10' -GMSAPrefix 'gmsa-' -GroupOU 'OU=Groups,OU=Enterprise Services' -InstallKDSRootKey
   }
 
 IF ($CreateADLabWorkstations -eq $True)
@@ -1257,12 +1272,12 @@ IF ($SetSPNDefaultAdminAccount -eq $True)
 
 IF ($InvokeRandomizeAdmins -eq $True) 
   {
-    Invoke-RandomizeAdmins -Domain $Domain -AdminOU 'OU=Accounts,OU=AD Administration' -ADAdminGroups @('Administrators','Account Operators','Backup Operators','DNSAdmins','Domain Admins','Print Operators','Server Operators')
+    Invoke-RandomizeAdmins -Domain $Domain -AdminOU 'OU=Accounts,OU=AD Administration' -ADAdminGroups @('Administrators','Account Operators','Backup Operators','Cert Publishers','DNSAdmins','Domain Admins','Enterprise Key Admins','Print Operators','Server Operators''Schema Admins')
   }
 
 IF ($InvokeRandomizeServiceAccountAdmins -eq $True) 
   {
-    Invoke-RandomizeServiceAccountAdmins -Domain $Domain -MaxServiceAccountsInAGroup 10 -ServiceAccountOU 'OU=Service Accounts,OU=Enterprise Services' -ADAdminGroups @('Administrators','Account Operators','Backup Operators','DNSAdmins','Domain Admins','Print Operators','Server Operators')
+    Invoke-RandomizeServiceAccountAdmins -Domain $Domain -MaxServiceAccountsInAGroup 10 -ServiceAccountOU 'OU=Service Accounts,OU=Enterprise Services' -ADAdminGroups @('Administrators','Account Operators','Backup Operators','Cert Publishers','DNSAdmins','Domain Admins','Enterprise Key Admins','Print Operators','Server Operators''Schema Admins')
   }
 
 IF ($AddPasswordToADAttribute -eq $True) 

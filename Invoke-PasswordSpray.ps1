@@ -66,8 +66,8 @@ ELSE
  {
     $DomainDCInfo = Get-ADDomainController -Discover -DomainName $Domain
     $DomainDC = $DomainDCInfo.Name
-    [array]$DomainInfo = Get-ADDomain -Server $DomainDC
-    $RemotePath = "\\$($DomainInfo.DNSRoot)\SYSVOL"
+    $DomainDCIP = $DomainDCInfo.IPv4Address
+    $RemotePath = "\\$DomainInfoDNS\SYSVOL"
  }
 
  [array]$DomainInfo = Get-ADDomain -Server $DomainDC
