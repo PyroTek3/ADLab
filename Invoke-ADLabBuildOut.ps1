@@ -34,7 +34,7 @@ If the above requirements are not met, results will be inconsistent.
 This script is provided as-is, without support.
 #>
 
-# Script Version 1.25.09.15
+# Script Version 1.25.10.29
 #
 
 Param
@@ -133,9 +133,10 @@ Function Create-BranchOfficeOUs
     $ANTTopLevelOUArray = @("Amundsen-Scott","Lenie","McMurdo","Palmer Station","Shirreff")
     $APTopLevelOUArray = @('Singapore','Tokyo','Seoul','Hong Kong','Beijing','Bangkok','Sydney','Shanghai','Melbourne','Kuala Lumpur','Osaka','Delhi','Mumbai','Bangalore','Auckland','Taipei','Guangzhou','Shenzhen','Brisbane','Perth')
     $EUTopLevelOUArray = @('Vienna','Barcelona','Paris','Budapest','Lisbon','Amsterdam','London','Rome','Stockholm','Athens','Berlin','Prague','Copenhagen','Florence','Madrid','Edinburgh','Istanbul','Milan','Munich','Seville','Venice','Brussels','Saint Petersburg','Dubrovnik')
-    $NATopLevelOUArray = @("Mexico City","New York","Los Angeles","Toronto","Chicago","Houston","Montreal","Havana","Tijuana","Phoenix","Ecatepec de Morelos","León","Philadelphia","Puebla","Juárez","Zapopan","San Antonio","Calgary","Guadalajara","San Diego","Dallas","Guatemala City","Port-au-Prince","Monterrey","Tegucigalpa","Edmonton","Panama City","Nezahualcóyotl","Ottawa","Managua","Santo Domingo","Austin","Jacksonville","San Jose","Fort Worth","Washington DC")
-    $SATopLevelOUArray = @('São Paulo','Buenos Aires','Rio de Janeiro','Bogotá','Lima','Santiago','Belo Horizonte','Salvador','Brasília','Caracas',"Medellín","Guayaquil","Fortaleza","Manaus","Cali","Curitiba","Quito","Maracaibo","Santa Cruz de la Sierra","Recife",'Córdoba')
-
+    $NATopLevelOUArray = @("Mexico City","New York City","Los Angeles","Toronto","Chicago","Houston","Montreal","Havana","Tijuana","Phoenix","Ecatepec de Morelos","León","Philadelphia","Puebla","Juárez","Zapopan","San Antonio","Calgary","Guadalajara","San Diego","Dallas","Guatemala City","Port-au-Prince","Monterrey","Tegucigalpa","Edmonton","Panama City","Nezahualcóyotl","Ottawa","Managua","Santo Domingo","Austin","Jacksonville","San Jose","Fort Worth","Washington DC")
+    $SATopLevelOUArray = @(,'Buenos Aires','Rio de Janeiro','Bogotá','Lima','Santiago','Belo Horizonte','Salvador','Brasília','Caracas',"Medellín","Guayaquil","Fortaleza","Manaus","Cali","Curitiba","Quito","Maracaibo","Santa Cruz de la Sierra","Recife",'Córdoba')
+    $DefaultTopLevelOUArray = @('Beijing','Bogotá','Cairo','Dhaka','Delhi',"Mexico City",'Lima',"Los Angeles",'Mumbai',"New York City",'Osaka','Paris','Rio de Janeiro','Shanghai','Singapore','São Paulo','Tokyo')
+    
     Switch($DomainInfo.Name)
      {
         'af'  { $TopLevelOUArray = $AFTopLevelOUArray }
@@ -144,6 +145,7 @@ Function Create-BranchOfficeOUs
         'eu'  { $TopLevelOUArray = $EUTopLevelOUArray }
         'na'  { $TopLevelOUArray = $NATopLevelOUArray }
         'sa'  { $TopLevelOUArray = $SATopLevelOUArray }
+        default { $TopLevelOUArray = $DefaultTopLevelOUArray }
      }
 
     Write-Host "Creating $($TopLevelOUArray.Count) Top-Level OUs"
@@ -763,6 +765,7 @@ Function Create-ADLabGMSAs
     $DomainInfo = Get-ADDomain -Server $DomainDC
 
     $GroupOUPath = $GroupOU + ',' + $DomainInfo.DistinguishedName
+
     IF ($SkipKDSRootKeyCheck -eq $True)
      { Write-Host "Skipping KDS Root Key Installation check across domains." }
     ELSE
@@ -790,9 +793,12 @@ Function Create-ADLabGMSAs
         ELSE
          { Write-Host "KDS Root Key already installed for $Domain" }
      }
-      $LabServiceAccountArray = @('Acronis','AGPM','Azure','BESServer','BigFix','Brightmail','CAXOER','CheckPoint','CiscoUnity','Citrix','CitrixPVS','Cloudera','Cognos','CommVault','CyberArkReconcile','Dynamics','Exchange','ExchArchive','FIM','Flume',`
-    'Hadoop','Imanami','Impala','InfoSphere','Insight','JBoss','Kafka','LDAP','Mongo','MagFS','NetIQ','OpenAccess','Oracle','PaloAlto','Patch','Qualys','Quest','SAPBO','SCCM','ServiceNow','SCOM','SharePoint','MSSQL','Varonis','VMWare','VPN','Web')
-   
+    
+    $LabServiceAccountArray = @('Acronis','AGPM','Azure','BESServer','BigFix','Brightmail','CAXOER','CheckPoint','CiscoUnity','Citrix','CitrixPVS','Cloudera','Cognos','CommVault','CyberArkReconcile','Dynamics','Exchange','ExchArchive','FIM','Flume',`
+     'Hadoop','Imanami','Impala','InfoSphere','Insight','JBoss','Kafka','LDAP','Mongo','MagFS','NetIQ','OpenAccess','Oracle','PaloAlto','Patch','Qualys','Quest','SAPBO','SCCM','ServiceNow','SCOM','SharePoint','MSSQL','Varonis','VMWare','VPN','Web')
+    
+    $LabServicePrincipalNames = @('MSSQLSVC','MSSQLSVC','MSSQLSVC','MSSQLSVC',,'MSSQLSVC','MSSQLSVC''CIFS','HTTP','https','ipp','ldap','MSOLAPSvc','NFS','RPC')
+      
     $GMSADoWhileLoop = 0
     DO
     {
@@ -800,16 +806,18 @@ Function Create-ADLabGMSAs
         Write-Host "Creating GMSA account $GMSADoWhileLoop of $NumberofGMSAs"
         
         $GMSANumber = Get-Random -Minimum 1 -Maximum 10 
+        $GMSASPNType = $LabServicePrincipalNames | Get-Random -Count 1
 
         $GMSAAccount = $($LabServiceAccountArray | Get-Random -count 1)
         $GMSAAccountName = $GMSAPrefix + $GMSAAccount 
         $GmsaDescription = "Account for $GMSAAccount "
         $GmsaDNSHostName = 'SRV' + $GMSAAccount + '0' + $GMSANumber + '.' + $Domain
         $GmsaGroupName = $GMSAAccountName + '0' + $GMSANumber
+        $GMSAServicePrincipalNames = $GMSASPNType + "/" + $GmsaDNSHostName
 
         New-ADGroup -Name $GmsaGroupName -DisplayName $GmsaGroupName -GroupScope Global -Path $GroupOUPath -Server $DomainDC
 
-        New-ADServiceAccount -Name $GMSAAccountName -Description $GmsaDescription -DNSHostName $GmsaDNSHostName -ManagedPasswordIntervalInDays 30 -PrincipalsAllowedToRetrieveManagedPassword $GmsaGroupName -Enabled $True -PassThru -Server $DomainDC
+        New-ADServiceAccount -Name $GMSAAccountName -Description $GmsaDescription -DNSHostName $GmsaDNSHostName -ServicePrincipalNames $GMSAServicePrincipalNames -ManagedPasswordIntervalInDays 30 -PrincipalsAllowedToRetrieveManagedPassword $GmsaGroupName -Enabled $True -PassThru -Server $DomainDC
      }
      WHILE
       ($GMSADoWhileLoop -lt $NumberofGMSAs)
