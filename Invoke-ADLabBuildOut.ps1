@@ -756,6 +756,7 @@ Function Create-ADLabGMSAs
         [Parameter(Mandatory=$true)][string]$Domain,
         [Parameter(Mandatory=$true)][int]$NumberofGMSAs,
         [Parameter(Mandatory=$true)][string]$GroupOU,
+        [Parameter(Mandatory=$true)][string]$ServerOU,
         [string]$GMSAPrefix,
         [switch]$InstallKDSRootKey,
         [switch]$SkipKDSRootKeyCheck
@@ -765,6 +766,7 @@ Function Create-ADLabGMSAs
     $DomainInfo = Get-ADDomain -Server $DomainDC
 
     $GroupOUPath = $GroupOU + ',' + $DomainInfo.DistinguishedName
+    $ServerOUPath = $ServerOU + ',' + $DomainInfo.DistinguishedName
 
     IF ($SkipKDSRootKeyCheck -eq $True)
      { Write-Host "Skipping KDS Root Key Installation check across domains." }
@@ -811,12 +813,15 @@ Function Create-ADLabGMSAs
         $GMSAAccount = $($LabServiceAccountArray | Get-Random -count 1)
         $GMSAAccountName = $GMSAPrefix + $GMSAAccount 
         $GmsaDescription = "Account for $GMSAAccount "
+        $GmsaHostName = 'SRV' + $GMSAAccount + '0' + $GMSANumber + '$'
         $GmsaDNSHostName = 'SRV' + $GMSAAccount + '0' + $GMSANumber + '.' + $Domain
         $GmsaGroupName = $GMSAAccountName + '0' + $GMSANumber
         $GMSAServicePrincipalNames = $GMSASPNType + "/" + $GmsaDNSHostName
 
+        New-ADComputer -Name $GmsaHostName -Path $ServerOUPath -Server $DomainDC
         New-ADGroup -Name $GmsaGroupName -DisplayName $GmsaGroupName -GroupScope Global -Path $GroupOUPath -Server $DomainDC
-
+        Start-Sleep -Seconds 10
+        Get-ADGroup -Identity $GmsaGroupName -Server $DomainDC | Add-ADGroupMember -Members $GmsaHostName -Server $DomainDC
         New-ADServiceAccount -Name $GMSAAccountName -Description $GmsaDescription -DNSHostName $GmsaDNSHostName -ServicePrincipalNames $GMSAServicePrincipalNames -ManagedPasswordIntervalInDays 30 -PrincipalsAllowedToRetrieveManagedPassword $GmsaGroupName -Enabled $True -PassThru -Server $DomainDC
      }
      WHILE
