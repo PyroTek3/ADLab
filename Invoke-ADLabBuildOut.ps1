@@ -34,12 +34,14 @@ If the above requirements are not met, results will be inconsistent.
 This script is provided as-is, without support.
 #>
 
-# Script Version 1.25.10.29
+# Script Version 1.25.11.20
+# Created: 2025-10-29
+# Updated: 2025-11-21
 #
 
 Param
  (
-    $Domain,
+    $Domain = $env:userdnsdomain,
     [switch]$CreateTopLevelOUs,
     [switch]$CreateBranchOfficeOUs,
     [switch]$RenameDomainAdministrator,
@@ -475,7 +477,7 @@ Function Create-ADLabServiceAccounts
      { $OUPath = 'OU=Service Accounts,OU=Enterprise Services'}
     $UserOUPath = "$OUPath,$($DomainInfo.DistinguishedName)"
 
-     $LabServiceAccountArray = @('Acronis','AGPM','Azure','BESServer','BigFix','Brightmail','CAXOER','CheckPoint','CiscoUnity','Citrix','CitrixPVS','Cloudera','Cognos','CommVault','CyberArkReconcile','Dynamics','Exchange','ExchArchive','FIM','Flume','Hadoop','Imanami','Impala','InfoSphere','Insight','JBoss','Kafka','LDAP','Mongo','MagFS','NetIQ','OpenAccess','Oracle','PaloAlto','Patch','Qualys','Quest','SAPBO','SCCM','ServiceNow','SCOM','SharePoint','MSSQL','Varonis','VMWare','VPN','Web')
+    $LabServiceAccountArray = @('Acronis','AGPM','Altiris','ADBackup','ArcServe','Apache','Azure','BackupExec','BESServer','BigFix','Brightmail','CAXOER','CheckPoint','Cisco','Citrix','CitrixPVS','Cloudera','Cognos','CommVault','CyberArkReconcile','Dynamics','Entrust','ExAdmin','Exchange','ExchArchive','Fax','FIMService','Flume','Hadoop','Helix','HyperV','Imanami','Impala','Informatica','InfoSphere','Insight','JBoss','Juniper','Kafka','Landesk','LDAP','MagFS','McAfee','MongoDB','MSSQL','Nessus','NetBackup','NetIQ','Norskale','Norton','OpenAccess','Oracle','PaloAlto','Patch','PKI','PostgresSQL','Qualys','Quest','Rapid7Scan','SAPBO','SCCM','SCOM','SecretServer','ServiceNow','SharePoint','Shavlik','SQL','Unity','Varonis','Vcenter','VMWare','VPN','VulnScan','Web')
 
     $PasswordArray = @('Qwerty!','Zxcvbnm!','Qwertyuiop!','1234asdf!','qwer1234!','ThisIsASecurePassword!')
     IF ($Password)
@@ -504,6 +506,8 @@ Function Create-ADLabServiceAccounts
 
         $AcronisSPN = "cmd.exe /C setspn -U -S AcronisAgent/TRDACRSRV$ServerNumber $LabServiceAccountArrayItemName"
         $AGPMSPN = "cmd.exe /C setspn -U -S AgpmServer/TRDAGPMSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $ArcServeSPN = "cmd.exe /C setspn -U -S CAARCserveRHAEngine/TRDAGPMSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $BackupExecSPN = "cmd.exe /C setspn -U -S Backup Exec System Recovery Agent 6.x/TRBFSRV$ServerNumber $LabServiceAccountArrayItemName"
         $BIGFIXSPN = "cmd.exe /C setspn -U -S iem/TRBFSRV$ServerNumber $LabServiceAccountArrayItemName"
         $CAXOSPN = "cmd.exe /C setspn -U -S CAXOsoftEngine/TRDXOSRV$ServerNumber $LabServiceAccountArrayItemName"
         $CiscoSPN = "cmd.exe /C setspn -U -S CUSESSIONKEYSVR/TRDCiscoSRV$ServerNumber $LabServiceAccountArrayItemName"
@@ -517,9 +521,13 @@ Function Create-ADLabServiceAccounts
         $FIMSPN = "cmd.exe /C setspn -U -S FIMService/TRDFIMSRV$ServerNumber $LabServiceAccountArrayItemName"
         $FLUMESPN = "cmd.exe /C setspn -U -S flume/TRDFLMSRV$ServerNumber $LabServiceAccountArrayItemName"
         $HADOOPSPN = "cmd.exe /C setspn -U -S hdfs/TRDHADOSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $HelixSPN = "cmd.exe /C setspn -U -S SeapineLicenseSvr/TRDHADOSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $HyperVSPN = "cmd.exe /C setspn -U -S Microsoft Virtual Console Service/TRDHADOSRV$ServerNumber $LabServiceAccountArrayItemName"
         $IMPALASPN = "cmd.exe /C setspn -U -S impala/TRDIMPOSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $InformaticaSPN = "cmd.exe /C setspn -U -S Informatica/TRDIMPOSRV$ServerNumber $LabServiceAccountArrayItemName"
         $InfoSphereSPN = "cmd.exe /C setspn -U -S secshd/TRDIMPOSRV$ServerNumber $LabServiceAccountArrayItemName"
         $JBOSSSPN = "cmd.exe /C setspn -U -S jboss/TRDJBSSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $JuniperSPN = "cmd.exe /C setspn -U -S tnetdgines/TRDJBSSRV$ServerNumber $LabServiceAccountArrayItemName"
         $KAFKASPN = "cmd.exe /C setspn -U -S kafka/TRDKFKSRV$ServerNumber $LabServiceAccountArrayItemName"
         $MagFSSPN = "cmd.exe /C setspn -U -S MagFS/TRDMAGDB$ServerNumber $LabServiceAccountArrayItemName"
         $MongoSPN = "cmd.exe /C setspn -U -S mongod/TRDMNGDB$ServerNumber $LabServiceAccountArrayItemName"
@@ -529,6 +537,7 @@ Function Create-ADLabServiceAccounts
         $QuestSPN = "cmd.exe /C setspn -U -S NPPolicyEvaluator/TRDQSTSRV$ServerNumber $LabServiceAccountArrayItemName"
         $SAPSPN = "cmd.exe /C setspn -U -S BOCMS/TRDSAPSRV$ServerNumber $LabServiceAccountArrayItemName"
         $SCOMSPN = "cmd.exe /C setspn -U -S MSOMHSvc/TRDSCOMSRV$ServerNumber $LabServiceAccountArrayItemName"
+        $UNITYSPN = "cmd.exe /C setspn -U -S CUSESSIONKEYSVR/TRDSCOMSRV$ServerNumber $LabServiceAccountArrayItemName"
         $VMwareSPN = "cmd.exe /C setspn -U -S STS/TRDVMW$ServerNumber $LabServiceAccountArrayItemName"
         $WWWSPN = "cmd.exe /C setspn -U -S HTTP/TRDWEB$ServerNumber $LabServiceAccountArrayItemName"
 
@@ -536,6 +545,10 @@ Function Create-ADLabServiceAccounts
          { invoke-expression $AcronisSPN  }
         IF ($LabServiceAccountArrayItem -eq 'AGPM')
          { invoke-expression $AGPMSPN  }
+        IF ($LabServiceAccountArrayItem -eq 'ArcServe')
+         { invoke-expression $ArcServeSPN  }
+        IF ($LabServiceAccountArrayItem -eq 'BackupExec')
+         { invoke-expression $BackupExecSPN  }
         IF ($LabServiceAccountArrayItem -eq 'BigFix')
          { invoke-expression $AGPMSPN  }
         IF ($LabServiceAccountArrayItem -eq 'CAXOER')
@@ -560,18 +573,26 @@ Function Create-ADLabServiceAccounts
          { invoke-expression $FLUMESPN  }
         IF ($LabServiceAccountArrayItem -eq 'Hadoop')
          { invoke-expression $HADOOPSPN  }
+        IF ($LabServiceAccountArrayItem -eq 'HyperV')
+         { invoke-expression $HyperVSPN  }
         IF ($LabServiceAccountArrayItem -eq 'Impala')
          { invoke-expression $IMPALASPN  }
+        IF ($LabServiceAccountArrayItem -eq 'Informatica')
+         { invoke-expression $InformaticaSPN  }
         IF ($LabServiceAccountArrayItem -eq 'InfoSphere')
          { invoke-expression $InfoSphereSPN  }
         IF ($LabServiceAccountArrayItem -eq 'JBoss')
          { invoke-expression $JBOSSSPN  }
+        IF ($LabServiceAccountArrayItem -eq 'Juniper')
+         { invoke-expression $JuniperSPN  }
         IF ($LabServiceAccountArrayItem -eq 'Kafka')
          { invoke-expression $KAFKASPN  }
         IF ($LabServiceAccountArrayItem -eq 'MagFS')
          { invoke-expression $MagFSSPN  }
-        IF ($LabServiceAccountArrayItem -eq 'Mongo')
+        IF ($LabServiceAccountArrayItem -eq 'MongoDB')
          { invoke-expression $MongoSPN  }
+        IF ($LabServiceAccountArrayItem -eq 'Unity')
+         { invoke-expression $CITRIXSPN  }
         IF ($LabServiceAccountArrayItem -eq 'SQL')
          { invoke-expression $MSSQLSPN }
         IF ($LabServiceAccountArrayItem -eq 'OpenAccess')
@@ -582,8 +603,10 @@ Function Create-ADLabServiceAccounts
          { invoke-expression $QuestSPN }
         IF ($LabServiceAccountArrayItem -eq 'SAPBO')
          { invoke-expression $SAPSPN }
-         IF ($LabServiceAccountArrayItem -eq 'SCOM')
+        IF ($LabServiceAccountArrayItem -eq 'SCOM')
          { invoke-expression $SCOMSPN }
+        IF ($LabServiceAccountArrayItem -eq 'Unity')
+         { invoke-expression $UnitySPN }
         IF ($LabServiceAccountArrayItem -eq 'VMWare')
          { invoke-expression $VMwareSPN }
         IF ($LabServiceAccountArrayItem -eq 'Web')
@@ -627,7 +650,6 @@ Function Create-ADLabAdminAccounts
     Do
      {  
         $AdminAccountLoopCount++
-        Write-Host "Creating Admin account $AdminAccountLoopCount of $NumberOfAdminAccounts"
 
         $FirstRandomNumber = Get-Random -Minimum 0 -Maximum 999
         $LastRandomNumber = Get-Random -Minimum 0 -Maximum 99
@@ -671,6 +693,8 @@ Function Create-ADLabAdminAccounts
              }
          }
         
+        Write-Host "Creating Admin account $AdminAccountName ($AdminAccountLoopCount of $NumberOfAdminAccounts)"
+
         $AdminAccountUPN = $AdminAccountName + "@" + $DomainInfo.DNSRoot
 
         IF ($PasswordString -eq $False)
@@ -856,13 +880,14 @@ Function Create-ADLabWindowsWorkstations
     DO
      {
         $DoWhileWorkstationLoop++
-        Write-Host "Creating Windows Workstation computer account $DoWhileWorkstationLoop of $NumberOfWorkstations"
-        
-        $ComputerOperatingSystem = $($WorkstationOperatingSystemArray | Get-Random -count 1)
-        $ComputerNumber = Get-Random -Minimum 100 -Maximum 999
-        $ComputerAlpha = -join ((65..90) | Get-Random -Count 3 | % {[char]$_})
-        $ComputerName = 'WRK' + ($DomainInfo.Name).ToUpper() + $ComputerAlpha + $ComputerNumber
 
+        $ComputerOperatingSystem = $($WorkstationOperatingSystemArray | Get-Random -count 1)
+        $ComputerNumber = Get-Random -Minimum 10 -Maximum 99
+        $ComputerAlpha = -join ((65..90) | Get-Random -Count 2 | % {[char]$_})
+        $ComputerDomain = (($DomainInfo.NetBIOSName).ToUpper()).Substring(0,8)
+        $ComputerName = 'WK' + $ComputerDomain + $ComputerAlpha + $ComputerNumber
+
+        Write-Host "Creating Windows Workstation computer account $ComputerName ($DoWhileWorkstationLoop of $NumberOfWorkstations)"
         New-ADComputer -Name $ComputerName -OperatingSystem $ComputerOperatingSystem -Path $ComputerOUPath -Enabled $True -Server $DomainDC
 
      }
@@ -895,14 +920,15 @@ Function Create-ADLabWindowsServers
     $DoWhileServerLoop = 0
     DO
      {
-        $DoWhileServerLoop++
-        Write-Host "Creating Windows Server computer account $DoWhileServerLoop of $NumberOfservers"
+        $DoWhileServerLoop++        
         
         $ComputerOperatingSystem = $($WindowsServerOperatingSystemArray | Get-Random -count 1)
         $ComputerNumber = Get-Random -Minimum 100 -Maximum 999
         $ComputerAlpha = -join ((65..90) | Get-Random -Count 3 | % {[char]$_})
-        $ComputerName = 'SRV' + ($DomainInfo.Name).ToUpper() + $ComputerAlpha + $ComputerNumber
+        $ComputerDomain = (($DomainInfo.NetBIOSName).ToUpper()).Substring(0,5)
+        $ComputerName = 'SRV' + $ComputerDomain + $ComputerAlpha + $ComputerNumber
 
+        Write-Host "Creating Windows Server computer account $ComputerName ($DoWhileServerLoop of $NumberOfservers)"
         New-ADComputer -Name $ComputerName -OperatingSystem $ComputerOperatingSystem -Path $ComputerOUPath -Enabled $True -Server $DomainDC
 
      }
@@ -916,11 +942,15 @@ Function Create-ADLabComputers
      (
         [Parameter(Mandatory=$true)]$Domain,
         [Parameter(Mandatory=$true)][int]$NumberOfComputers,
-        [Parameter(Mandatory=$true)][string]$ComputerOU
+        [Parameter(Mandatory=$true)][string]$ComputerOU,
+        [string]$Prefix
      )
 
     $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
     $DomainInfo = Get-ADDomain -Server $DomainDC
+
+    IF (!$Prefix)
+     { $Prefix = 'NAP' } 
     
     $NonWindowsOperatingSystemArray = @(
     'Acropolis File Server OS','AIX','CentOS','CentOS Linux release 7.5.1804 (Core)','Centrify','Cisco Identity Services Engine',
@@ -951,19 +981,20 @@ Function Create-ADLabComputers
     $DoWhileServerLoop = 0
     DO
      {
-        $DoWhileServerLoop++
-        Write-Host "Creating Non-Windows computer account $DoWhileServerLoop of $NumberOfservers"
+        $DoWhileServerLoop++        
         
         $ComputerOperatingSystem = $($NonWindowsOperatingSystemArray | Get-Random -count 1)
         $ComputerNumber = Get-Random -Minimum 100 -Maximum 999
         $ComputerAlpha = -join ((65..90) | Get-Random -Count 3 | % {[char]$_})
-        $ComputerName = 'SRV' + ($DomainInfo.Name).ToUpper() + $ComputerAlpha + $ComputerNumber
+        $ComputerDomain = (($DomainInfo.NetBIOSName).ToUpper()).Substring(0,5)
+        $ComputerName = $Prefix + $ComputerDomain + $ComputerAlpha + $ComputerNumber
 
+        Write-Host "Creating Non-Windows computer account $ComputerName ($DoWhileServerLoop of $NumberOfComputers)"
         New-ADComputer -Name $ComputerName -OperatingSystem $ComputerOperatingSystem -Path $ComputerOUPath -Enabled $True -Server $DomainDC
 
      }
      WHILE
-      ( $DoWhileServerLoop -lt $NumberOfservers )
+      ( $DoWhileServerLoop -lt $NumberOfComputers )
  }
 
 Function Create-ADLabFGPPs
@@ -1341,7 +1372,7 @@ IF ($CreateADLabAdminAccounts -eq $True)
 
 IF ($CreateADLabGMSAs -eq $True) 
   {
-    Create-ADLabGMSAs -Domain $Domain -NumberofGMSAs '10' -GMSAPrefix 'gmsa-' -GroupOU 'OU=Groups,OU=Enterprise Services' -InstallKDSRootKey
+     Create-ADLabGMSAs -Domain $Domain -NumberofGMSAs '10' -GMSAPrefix 'gmsa-' -GroupOU 'OU=Groups,OU=Enterprise Services' -ServerOU 'OU=Servers,OU=Enterprise Services' # -InstallKDSRootKey
   }
 
 IF ($CreateADLabWorkstations -eq $True)
