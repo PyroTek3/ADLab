@@ -27,7 +27,7 @@ WEBSITE: https://ADSecurity.org
 
 This script requires the following:
  * PowerShell 5.0 (minimum)
- * Windows 10/2016
+ * Windows 10/2016 (minimum)
  * Active Directory PowerShell Module
  * Group Policy PowerShell Module
 If the above requirements are not met, results will be inconsistent.
@@ -61,7 +61,6 @@ Param
     [switch]$AddKerberosDelegation,
     [switch]$AddComputerAccountstoAdmins,
     [switch]$SetOUsWithBlockedGPOInheritance
-
  )
 
 Function Create-TopLevelOUs
