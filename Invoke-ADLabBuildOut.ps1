@@ -34,9 +34,9 @@ If the above requirements are not met, results will be inconsistent.
 This script is provided as-is, without support.
 #>
 
-# Script Version 1.25.11.20
+# Script Version 1.25.11.26
 # Created: 2025-10-29
-# Updated: 2025-11-21
+# Updated: 2025-11-26
 #
 
 Param
@@ -64,7 +64,6 @@ Param
 
  )
 
-
 Function Create-TopLevelOUs
  {
     Param
@@ -79,12 +78,12 @@ Function Create-TopLevelOUs
 
     ForEach ($TopLevelOUsItem in $TopLevelOUs)
      {
-        Write-Host "Creating the top-level OU: $TopLevelOUsItem"
+        Write-Host "Creating the top-level OU: $TopLevelOUsItem"  -ForegroundColor Cyan
         New-ADOrganizationalUnit $TopLevelOUsItem -Server $DomainDC
         Start-sleep 5
         IF ($TopLevelOUsItem -like "*Admin*")
          {
-            Write-Host "Creating OUs under the $TopLevelOUsItem top-level OU"
+            Write-Host "Creating OUs under the $TopLevelOUsItem top-level OU" -ForegroundColor Cyan
             New-ADOrganizationalUnit 'Accounts' -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False -Server $DomainDC
             New-ADOrganizationalUnit 'Computers' -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False -Server $DomainDC
             New-ADOrganizationalUnit 'Groups' -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False -Server $DomainDC
@@ -92,7 +91,7 @@ Function Create-TopLevelOUs
          }
         IF ($TopLevelOUsItem -eq "Enterprise Services")
          {
-            Write-Host "Creating OUs under the $TopLevelOUsItem top-level OU"
+            Write-Host "Creating OUs under the $TopLevelOUsItem top-level OU" -ForegroundColor Cyan
             New-ADOrganizationalUnit 'Entra ID' -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False -Server $DomainDC
             New-ADOrganizationalUnit 'Exchange'-Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False -Server $DomainDC
             New-ADOrganizationalUnit 'Groups' -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False  -Server $DomainDC
@@ -150,18 +149,18 @@ Function Create-BranchOfficeOUs
         default { $TopLevelOUArray = $DefaultTopLevelOUArray }
      }
 
-    Write-Host "Creating $($TopLevelOUArray.Count) Top-Level OUs"
+    Write-Host "Creating $($TopLevelOUArray.Count) Top-Level OUs" -ForegroundColor Cyan
 
     $TopLevelOUArray = $TopLevelOUArray | Sort-Object
     ForEach ($TopLevelOUArrayItem in $TopLevelOUArray)
      { 
-        Write-Host "Creating the OU $TopLevelOUArrayItem in $domain"
+        Write-Host "Creating the OU $TopLevelOUArrayItem in $domain" -ForegroundColor Cyan
         New-ADOrganizationalUnit $TopLevelOUArrayItem -Path $OUPath -ProtectedFromAccidentalDeletion $False -Server $DomainDC
         Start-Sleep 3
         ForEach ($TopLevelOUStructureArrayItem in $TopLevelOUStructureArray)
          { New-ADOrganizationalUnit $TopLevelOUStructureArrayItem -Path "OU=$TopLevelOUArrayItem,$OUPath" -ProtectedFromAccidentalDeletion $False -Server $DomainDC }
      }
-     Write-Host "Top-level OU creation complete"    
+     Write-Host "Top-level OU creation complete"  -ForegroundColor Cyan   
  }
 
 Function Rename-DomainAdministrator
@@ -173,12 +172,12 @@ Function Rename-DomainAdministrator
      )
 
     $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
-    Write-Host "Renaming Administrator to $NewName"
+    Write-Host "Renaming Administrator to $NewName" -ForegroundColor Cyan
     TRY
      {
         Rename-ADObject -Identity (Get-ADUser "Administrator" -Server $DomainDC) -NewName $NewName -Server $DomainDC
          Set-ADUser -Identity (Get-ADUser 'Administrator' -Server $DomainDC) -SamAccountName $NewName -Server $DomainDC
-        Write-Host "Administrator account renamed to $NewName complete"   
+        Write-Host "Administrator account renamed to $NewName complete" -ForegroundColor Cyan
      }
     CATCH
      { Write-Warning "An error occured while attempting to rename the account 'Administrator' to $NewName" }
@@ -251,7 +250,7 @@ Function Create-ADLabUsers
               
         $TestUserAccountUPN = $TestUserAccount + "@" + $DomainInfo.DNSRoot
 
-        Write-Host "Creating lab user $TestUserAccount (#$UserAccountLoopCount out of $NumberOfADUserAccounts)"
+        Write-Host "Creating lab user $TestUserAccount (#$UserAccountLoopCount out of $NumberOfADUserAccounts)" -ForegroundColor Cyan
         
 		$RandomNumber = Get-Random -minimum 1 -maximum 50
 		IF ($RandomNumber -le 50) {$HomeDir = "\\ABC-RS01\Home\$TestUserAccount"}
@@ -431,7 +430,7 @@ Function Create-ADLabUsers
     While 
      ( $UserAccountLoopCount -lt $NumberOfADUserAccounts )
 
-    Write-Host "Lab account creation complete"
+    Write-Host "Lab account creation complete" -ForegroundColor Cyan
  }
 
 Function Create-ADLabGroups
@@ -454,9 +453,12 @@ Function Create-ADLabGroups
      { $ADGroupArray = @('Workstation Admins','Server Admins') }
 
     ForEach ($ADGroupArrayItem in $ADGroupArray)
-     { New-ADGroup -Name $ADGroupArrayItem -GroupCategory "Security" -GroupScope "Global" -Path $GroupOUPath -Server $DomainDC }
+     { 
+        Write-host "Creating group $ADGroupArrayItem" -ForegroundColor Cyan
+        New-ADGroup -Name $ADGroupArrayItem -GroupCategory "Security" -GroupScope "Global" -Path $GroupOUPath -Server $DomainDC 
+     }
 
-    Write-Host "Lab group creation complete"
+    Write-Host "Lab group creation complete" -ForegroundColor Cyan
   }
 
 Function Create-ADLabServiceAccounts
@@ -496,7 +498,7 @@ Function Create-ADLabServiceAccounts
         IF ($PasswordString -eq $False)
          { $Password = $PasswordArray | Get-Random -Count 1 } 
 
-        Write-Host "Creating service account for $LabServiceAccountArrayItem"
+        Write-Host "Creating service account for $LabServiceAccountArrayItem ($SerivceAccountLoopCount of $NumberOfAccounts)" -ForegroundColor Cyan
         New-ADUser -Name $LabServiceAccountArrayItem -AccountPassword (ConvertTo-SecureString -AsPlainText $Password -Force) -UserPrincipalName $LabServiceAccountArrayUPN -Path $UserOUPath -Enabled $True -Server $DomainDC 
 
         $LabServiceAccountArrayItemName = $DomainInfo.NetBIOSName + '\' + $LabServiceAccountArrayItem 
@@ -614,7 +616,7 @@ Function Create-ADLabServiceAccounts
      }
      WHILE
        ( $SerivceAccountLoopCount -lt $NumberOfAccounts ) 
-     Write-Host "Lab service account creation complete"
+     Write-Host "Lab service account creation complete" -ForegroundColor Cyan
  }
 
 Function Create-ADLabAdminAccounts
@@ -693,7 +695,7 @@ Function Create-ADLabAdminAccounts
              }
          }
         
-        Write-Host "Creating Admin account $AdminAccountName ($AdminAccountLoopCount of $NumberOfAdminAccounts)"
+        Write-Host "Creating Admin account $AdminAccountName ($AdminAccountLoopCount of $NumberOfAdminAccounts)" -ForegroundColor Cyan
 
         $AdminAccountUPN = $AdminAccountName + "@" + $DomainInfo.DNSRoot
 
@@ -770,7 +772,7 @@ Function Create-ADLabAdminAccounts
     While 
      ( $AdminAccountLoopCount -lt $NumberOfAdminAccounts )
 
-    Write-Host "Lab admin account creation complete"
+    Write-Host "Lab admin account creation complete" -ForegroundColor Cyan
  }
 
 Function Create-ADLabGMSAs
@@ -793,10 +795,10 @@ Function Create-ADLabGMSAs
     $ServerOUPath = $ServerOU + ',' + $DomainInfo.DistinguishedName
 
     IF ($SkipKDSRootKeyCheck -eq $True)
-     { Write-Host "Skipping KDS Root Key Installation check across domains." }
+     { Write-Host "Skipping KDS Root Key Installation check across domains."  -ForegroundColor Cyan}
     ELSE
      {
-        Write-Host "Checking for KDS Root Key Installation across domains..."
+        Write-Host "Checking for KDS Root Key Installation across domains..." -ForegroundColor Cyan
         $KDSRootKeyArray = Get-KdsRootKey
         $KDSRootKeyDomainArray = @()
         ForEach ($KDSRootKeyArrayItem in $KDSRootKeyArray)
@@ -810,49 +812,55 @@ Function Create-ADLabGMSAs
          }
 
         $KDSDomainCheck = $KDSRootKeyDomainArray | Where {$_.DNSRoot -eq $Domain}
+
         IF ( (!$KDSDomainCheck) -AND ($InstallKDSRootKey -eq $True) )
          { 
-            write-host "Configuring KDS root key for $Domain"
+            write-host "Configuring KDS root key for $Domain" -ForegroundColor Cyan
             Invoke-Command -ComputerName $DomainDC -ScriptBlock { Add-KdsRootKey -EffectiveImmediately } 
             Start-Sleep -Seconds 120
          }
         ELSE
-         { Write-Host "KDS Root Key already installed for $Domain" }
+         { Write-Host "KDS Root Key already installed for $Domain"  -ForegroundColor Cyan}
      }
     
-    $LabServiceAccountArray = @('Acronis','AGPM','Azure','BESServer','BigFix','Brightmail','CAXOER','CheckPoint','CiscoUnity','Citrix','CitrixPVS','Cloudera','Cognos','CommVault','CyberArkReconcile','Dynamics','Exchange','ExchArchive','FIM','Flume',`
-     'Hadoop','Imanami','Impala','InfoSphere','Insight','JBoss','Kafka','LDAP','Mongo','MagFS','NetIQ','OpenAccess','Oracle','PaloAlto','Patch','Qualys','Quest','SAPBO','SCCM','ServiceNow','SCOM','SharePoint','MSSQL','Varonis','VMWare','VPN','Web')
-    
-    $LabServicePrincipalNames = @('MSSQLSVC','MSSQLSVC','MSSQLSVC','MSSQLSVC',,'MSSQLSVC','MSSQLSVC''CIFS','HTTP','https','ipp','ldap','MSOLAPSvc','NFS','RPC')
-      
-    $GMSADoWhileLoop = 0
-    DO
+    IF ($KDSDomainCheck)
     {
-        $GMSADoWhileLoop++
-        Write-Host "Creating GMSA account $GMSADoWhileLoop of $NumberofGMSAs"
-        
-        $GMSANumber = Get-Random -Minimum 1 -Maximum 10 
-        $GMSASPNType = $LabServicePrincipalNames | Get-Random -Count 1
+        $LabServiceAccountArray = @('Acronis','AGPM','Azure','BESServer','BigFix','Brightmail','CAXOER','CheckPoint','CiscoUnity','Citrix','CitrixPVS','Cloudera','Cognos','CommVault','CyberArkReconcile','Dynamics','Exchange','ExchArchive','FIM','Flume',`
+         'Hadoop','Imanami','Impala','InfoSphere','Insight','JBoss','Kafka','LDAP','Mongo','MagFS','NetIQ','OpenAccess','Oracle','PaloAlto','Patch','Qualys','Quest','SAPBO','SCCM','ServiceNow','SCOM','SharePoint','MSSQL','Varonis','VMWare','VPN','Web')
+    
+        $LabServicePrincipalNames = @('MSSQLSVC','MSSQLSVC','MSSQLSVC','MSSQLSVC',,'MSSQLSVC','MSSQLSVC''CIFS','HTTP','https','ipp','ldap','MSOLAPSvc','NFS','RPC')
+      
+        $GMSADoWhileLoop = 0
+        DO
+         {
+            $GMSADoWhileLoop++
 
-        $GMSAAccount = $($LabServiceAccountArray | Get-Random -count 1)
-        $GMSAAccountName = $GMSAPrefix + $GMSAAccount 
-        $GmsaDescription = "Account for $GMSAAccount "
-        $GmsaHostName = 'SRV' + $GMSAAccount + '0' + $GMSANumber + '$'
-        $GmsaDNSHostName = 'SRV' + $GMSAAccount + '0' + $GMSANumber + '.' + $Domain
-        $GmsaGroupName = $GMSAAccountName + '0' + $GMSANumber
-        $GMSAServicePrincipalNames = $GMSASPNType + "/" + $GmsaDNSHostName
+            $GMSANumber = Get-Random -Minimum 10 -Maximum 99 
+            $GMSASPNType = $LabServicePrincipalNames | Get-Random -Count 1
 
-        New-ADComputer -Name $GmsaHostName -Path $ServerOUPath -Server $DomainDC
-        New-ADGroup -Name $GmsaGroupName -DisplayName $GmsaGroupName -GroupScope Global -Path $GroupOUPath -Server $DomainDC
-        Start-Sleep -Seconds 10
-        Get-ADGroup -Identity $GmsaGroupName -Server $DomainDC | Add-ADGroupMember -Members $GmsaHostName -Server $DomainDC
-        New-ADServiceAccount -Name $GMSAAccountName -Description $GmsaDescription -DNSHostName $GmsaDNSHostName -ServicePrincipalNames $GMSAServicePrincipalNames -ManagedPasswordIntervalInDays 30 -PrincipalsAllowedToRetrieveManagedPassword $GmsaGroupName -Enabled $True -PassThru -Server $DomainDC
+            $GMSAAccount = $($LabServiceAccountArray | Get-Random -count 1)
+            $GMSAAccountName = $GMSAPrefix + $GMSAAccount 
+            $GmsaDescription = "Account for $GMSAAccount "
+            $GmsaHostName = 'SRV' + $GMSAAccount + $GMSANumber 
+            $GmsaDNSHostName = 'SRV' + $GMSAAccount + $GMSANumber + '.' + $Domain
+            $GmsaGroupName = $GMSAAccountName + $GMSANumber
+            $GMSAServicePrincipalNames = $GMSASPNType + "/" + $GmsaDNSHostName
+
+            Write-Host "Creating GMSA account $GMSAAccountName ($GMSADoWhileLoop of $NumberofGMSAs) -ForegroundColor Cyan"
+
+            New-ADComputer -Name $GmsaHostName -Path $ServerOUPath -Server $DomainDC
+            New-ADGroup -Name $GmsaGroupName -DisplayName $GmsaGroupName -GroupScope Global -Path $GroupOUPath -Server $DomainDC
+            Start-Sleep -Seconds 3
+            Get-ADGroup -Identity $GmsaGroupName -Server $DomainDC | Add-ADGroupMember -Members $(Get-ADComputer $GmsaHostName -Server $DomainDC) -Server $DomainDC
+            New-ADServiceAccount -Name $GMSAAccountName -Description $GmsaDescription -DNSHostName $GmsaDNSHostName -ServicePrincipalNames $GMSAServicePrincipalNames -ManagedPasswordIntervalInDays 30 -PrincipalsAllowedToRetrieveManagedPassword $GmsaGroupName -Enabled $True -PassThru -Server $DomainDC
+          }
+         WHILE
+          ($GMSADoWhileLoop -lt $NumberofGMSAs)
+
+        Write-Host "Created $NumberofGMSAs GMSAs in $Domain" -ForegroundColor Cyan
      }
-     WHILE
-      ($GMSADoWhileLoop -lt $NumberofGMSAs)
-
-    Write-Host "Created $NumberofGMSAs GMSAs in $Domain"
-
+   ELSE 
+    { Write-Warning "A KDS Root key was not discovered for $Domain. This is required before creating GMSAs." }
   }
 
 Function Create-ADLabWindowsWorkstations
@@ -887,7 +895,7 @@ Function Create-ADLabWindowsWorkstations
         $ComputerDomain = (($DomainInfo.NetBIOSName).ToUpper()).Substring(0,8)
         $ComputerName = 'WK' + $ComputerDomain + $ComputerAlpha + $ComputerNumber
 
-        Write-Host "Creating Windows Workstation computer account $ComputerName ($DoWhileWorkstationLoop of $NumberOfWorkstations)"
+        Write-Host "Creating Windows Workstation computer account $ComputerName ($DoWhileWorkstationLoop of $NumberOfWorkstations)" -ForegroundColor Cyan
         New-ADComputer -Name $ComputerName -OperatingSystem $ComputerOperatingSystem -Path $ComputerOUPath -Enabled $True -Server $DomainDC
 
      }
@@ -928,7 +936,7 @@ Function Create-ADLabWindowsServers
         $ComputerDomain = (($DomainInfo.NetBIOSName).ToUpper()).Substring(0,5)
         $ComputerName = 'SRV' + $ComputerDomain + $ComputerAlpha + $ComputerNumber
 
-        Write-Host "Creating Windows Server computer account $ComputerName ($DoWhileServerLoop of $NumberOfservers)"
+        Write-Host "Creating Windows Server computer account $ComputerName ($DoWhileServerLoop of $NumberOfservers)" -ForegroundColor Cyan
         New-ADComputer -Name $ComputerName -OperatingSystem $ComputerOperatingSystem -Path $ComputerOUPath -Enabled $True -Server $DomainDC
 
      }
@@ -989,7 +997,7 @@ Function Create-ADLabComputers
         $ComputerDomain = (($DomainInfo.NetBIOSName).ToUpper()).Substring(0,5)
         $ComputerName = $Prefix + $ComputerDomain + $ComputerAlpha + $ComputerNumber
 
-        Write-Host "Creating Non-Windows computer account $ComputerName ($DoWhileServerLoop of $NumberOfComputers)"
+        Write-Host "Creating Non-Windows computer account $ComputerName ($DoWhileServerLoop of $NumberOfComputers)" -ForegroundColor Cyan
         New-ADComputer -Name $ComputerName -OperatingSystem $ComputerOperatingSystem -Path $ComputerOUPath -Enabled $True -Server $DomainDC
 
      }
@@ -1015,15 +1023,15 @@ Function Create-ADLabFGPPs
     Do
      {
         $FGPPDOWhileLoop++
-        Write-Host "Create Fine-Grained Password Policies in $ForestDomainItem ($FGPPDOWhileLoop of $NumberOfFGPPs)..." -ForegroundColor Cyan
 
-        $RandomNumber = Get-Random -Minimum 11 -Maximum 49
+        $RandomNumber = Get-Random -Minimum 11 -Maximum 99
         $FGPPGroupName = "$(($DomainInfo.Name).ToUpper())-FGPP-$RandomNumber-Group"
         $FGPPName = "$(($DomainInfo.Name).ToUpper())-FGPP-$RandomNumber"
         
         New-ADGroup -Name $FGPPGroupName -SamAccountName $FGPPName -GroupCategory Security -GroupScope Universal -DisplayName $FGPPGroupName -Path $AdminGroupsPathDN -Server $DomainDC  
-        Start-Sleep -Seconds 5
+        Start-Sleep -Seconds 3
 
+        Write-Host "Creating the FGPP $FGPPName in $Domain ($FGPPDOWhileLoop of $NumberOfFGPPs)..." -ForegroundColor Cyan
         New-ADFineGrainedPasswordPolicy -Name $FGPPName -DisplayName $FGPPName -Precedence 100 -ComplexityEnabled $true -ReversibleEncryptionEnabled $false -PasswordHistoryCount 10 -MinPasswordLength 12 -MinPasswordAge 3.00:00:00 -MaxPasswordAge 30.00:00:00 -LockoutThreshold 3 -LockoutObservationWindow 0.00:25:00 -LockoutDuration 0.00:30:00 -Server $DomainDC 
        #  Add-ADFineGrainedPasswordPolicySubject $FGPPName -Subjects $FGPPGroupName -Server $DomainDC 
       }
@@ -1073,14 +1081,14 @@ Function Invoke-RandomizeAdmins
 
     [array]$AdminUserArray = Get-ADUser -Filter * -SearchBase $AdminOUPath -Server $DomainDC
 
-    Write-Host "Discovered $($AdminUserArray.Count) Admin Accounts in $AdminOUPath"
+    Write-Host "Discovered $($AdminUserArray.Count) Admin Accounts in $AdminOUPath" -ForegroundColor Cyan
 
     ForEach ($ADAdminGroupItem in $ADAdminGroups)
      {
         $DoWhileLoopTotalCount = Get-Random -Min 1 -Max $($AdminUserArray.Count)
         [int]$DoWhileLoopCount = 0
         
-        Write-Host "Adding $DoWhileLoopTotalCount Admin Accounts to the privileged group $ADAdminGroupItem"
+        Write-Host "Adding $DoWhileLoopTotalCount Admin Accounts to the privileged group $ADAdminGroupItem" -ForegroundColor Cyan
 
         DO
          {
@@ -1110,14 +1118,14 @@ Function Invoke-RandomizeServiceAccountAdmins
 
     [array]$ServiceAccountArray = Get-ADUser -Filter * -SearchBase $ServiceAccountOUPath -Server $DomainDC
 
-    Write-Host "Discovered $($ServiceAccountArray.Count) Service Accounts in $ServiceAccountOUPath"
+    Write-Host "Discovered $($ServiceAccountArray.Count) Service Accounts in $ServiceAccountOUPath" -ForegroundColor Cyan
 
     ForEach ($ADAdminGroupItem in $ADAdminGroups)
      {
         $DoWhileLoopTotalCount = Get-Random -Min 1 -Max $MaxServiceAccountsInAGroup
         [int]$DoWhileLoopCount = 0
         
-        Write-Host "Adding $DoWhileLoopTotalCount Service Accounts to the privileged group $ADAdminGroupItem"
+        Write-Host "Adding $DoWhileLoopTotalCount Service Accounts to the privileged group $ADAdminGroupItem" -ForegroundColor Cyan
 
         DO
          {
@@ -1260,7 +1268,7 @@ Function Add-ComputerAccountstoAdmins
         $Computer = $ComputerArray | Get-Random -Count 1
         $Group = Get-ADGroup $($ADAdminGroups | Get-Random -Count 1)
 
-        Write-host "Updating Group $($Group.Name) with member $($Computer.Name)"
+        Write-host "Updating Group $($Group.Name) with member $($Computer.Name)" -ForegroundColor Cyan
         Add-ADGroupMember -Identity $Group.DistinguishedName -Members $Computer.DistinguishedName
      }
     WHILE
@@ -1324,7 +1332,7 @@ Function Set-OUsWithBlockedGPOInheritance
             [array]$DomainOUArray = Get-ADOrganizationalUnit -Filter * -Properties CanonicalName -SearchBase $OURootDN -Server $DomainDC 
             $TargetOU = $DomainOUArray | Get-Random -Count 1 
 
-            Write-Host "Configuring Blocked Inheritance on $($TargetOU.CanonicalName)"
+            Write-Host "Configuring Blocked Inheritance on $($TargetOU.CanonicalName)" -ForegroundColor Cyan
             Set-GPInheritance $TargetOU.DistinguishedName -IsBlocked Yes -Domain $Domain
          }
         WHILE 
