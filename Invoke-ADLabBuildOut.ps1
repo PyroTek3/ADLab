@@ -1317,7 +1317,7 @@ Function Set-OUsWithBlockedGPOInheritance
      (
         [Parameter(Mandatory=$true)][string]$Domain,
         [Parameter(Mandatory=$true)][string]$RootOU,
-        [Parameter(Mandatory=$true)][string]$NumberOfOUs
+        [Parameter(Mandatory=$true)][int]$NumberOfOUs
      )
     
     $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
@@ -1346,7 +1346,8 @@ Function Add-SPNsToAdmins
         [Parameter(Mandatory=$true)][string]$Domain,
         [Parameter(Mandatory=$true)][string]$AdminOU,
         [Parameter(Mandatory=$true)][string]$ServerOU,
-        [Parameter(Mandatory=$true)][int]$NumberOfAdmins
+        [Parameter(Mandatory=$true)][int]$NumberOfAdmins,
+        [string]$SPNType
      ) 
 
     $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
@@ -1371,7 +1372,11 @@ Function Add-SPNsToAdmins
         $ServerOUPath = $ServerOU + ',' + $DomainInfo.DistinguishedName
         New-ADComputer -Name $ServerName -SamAccountName $ServerName -Path $ServerOUPath -Enabled $True -Server $DomainDC 
 
-        $SPN = 'MSSQLSvc/' + $ServerName + ':1433'
+        IF ($SPNType)
+         { $SPN = $SPNType + '/' + $ServerName }
+        ELSE
+         { $SPN = 'MSSQLSvc/' + $ServerName + ':1433' }
+
         [string]$DefaultDomainAdminSID = $DomainInfo.DomainSID.Value + '-500'
             
         TRY
@@ -1483,6 +1488,6 @@ IF ($SetOUsWithBlockedGPOInheritance -eq $True)
 
  IF ($AddSPNsToAdmins -eq $True)
   {
-    Add-SPNsToAdmins -Domain $Domain -NumberOfAdmins 5 -AdminOU 'OU=Accounts,OU=AD Administration' -ServerOU 'OU=Servers,OU=Enterprise Services'
+    Add-SPNsToAdmins -Domain $Domain -NumberOfAdmins 5 -AdminOU 'OU=Accounts,OU=AD Administration' -ServerOU 'OU=Servers,OU=Enterprise Services' # -SPNType 'HTTP'
   }
 
