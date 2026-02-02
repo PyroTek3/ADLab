@@ -34,9 +34,9 @@ If the above requirements are not met, results will be inconsistent.
 This script is provided as-is, without support.
 #>
 
-# Script Version 1.25.11.26
+# Script Version 1.26.02.02
 # Created: 2025-10-29
-# Updated: 2025-11-26
+# Updated: 2026-02-02
 #
 
 Param
@@ -60,7 +60,8 @@ Param
     [switch]$AddPasswordToADAttribute,
     [switch]$AddKerberosDelegation,
     [switch]$AddComputerAccountstoAdmins,
-    [switch]$SetOUsWithBlockedGPOInheritance
+    [switch]$SetOUsWithBlockedGPOInheritance,
+    [switch]$AddSPNsToAdmins
  )
 
 Function Create-TopLevelOUs
@@ -1312,32 +1313,75 @@ Function Add-HybridServiceAccounts
 
 Function Set-OUsWithBlockedGPOInheritance
  {
-        Param
-         (
-            [Parameter(Mandatory=$true)][string]$Domain,
-            [Parameter(Mandatory=$true)][string]$RootOU,
-            [Parameter(Mandatory=$true)][string]$NumberOfOUs
-          )
+    Param
+     (
+        [Parameter(Mandatory=$true)][string]$Domain,
+        [Parameter(Mandatory=$true)][string]$RootOU,
+        [Parameter(Mandatory=$true)][string]$NumberOfOUs
+     )
     
-        $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
-        $DomainInfo = Get-ADDomain -Server $DomainDC
+    $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
+    $DomainInfo = Get-ADDomain -Server $DomainDC
     
-        [string]$OURootDN = $RootOU + ',' + $DomainInfo.DistinguishedName
+    [string]$OURootDN = $RootOU + ',' + $DomainInfo.DistinguishedName
     
-        $DOWhileOULoop = 0
-        DO
-         {
-            $DOWhileOULoop++
-            [array]$DomainOUArray = Get-ADOrganizationalUnit -Filter * -Properties CanonicalName -SearchBase $OURootDN -Server $DomainDC 
-            $TargetOU = $DomainOUArray | Get-Random -Count 1 
+    $DOWhileOULoop = 0
+    DO
+     {
+        $DOWhileOULoop++
+        [array]$DomainOUArray = Get-ADOrganizationalUnit -Filter * -Properties CanonicalName -SearchBase $OURootDN -Server $DomainDC 
+        $TargetOU = $DomainOUArray | Get-Random -Count 1 
 
-            Write-Host "Configuring Blocked Inheritance on $($TargetOU.CanonicalName)" -ForegroundColor Cyan
-            Set-GPInheritance $TargetOU.DistinguishedName -IsBlocked Yes -Domain $Domain
-         }
-        WHILE 
-         ($DOWhileOULoop -le $NumberOfOUs)     
-    }
+        Write-Host "Configuring Blocked Inheritance on $($TargetOU.CanonicalName)" -ForegroundColor Cyan
+        Set-GPInheritance $TargetOU.DistinguishedName -IsBlocked Yes -Domain $Domain
+     }
+    WHILE 
+      ($DOWhileOULoop -le $NumberOfOUs)     
+ }
 
+Function Add-SPNsToAdmins 
+ {
+    Param
+     (
+        [Parameter(Mandatory=$true)][string]$Domain,
+        [Parameter(Mandatory=$true)][string]$AdminOU,
+        [Parameter(Mandatory=$true)][string]$ServerOU,
+        [Parameter(Mandatory=$true)][int]$NumberOfAdmins
+     ) 
+
+    $DomainDC = (Get-ADDomainController -Discover -DomainName $Domain).Name
+    $DomainInfo = Get-ADDomain -Server $DomainDC
+        
+    $AdminOUPath = $AdminOU + ',' + $DomainInfo.DistinguishedName
+    $ServerOUPath = $ServerOU + ',' + $DomainInfo.DistinguishedName
+    
+    [array]$AdminUserArray = Get-ADUser -Filter * -SearchBase $AdminOUPath -Server $DomainDC
+
+    $SPNNames = @('Alpha','Beta','Gamma','Delta','Epsilon','Zeta','Eta','Theta','Iota','Kappa','Lambda','Omicron','Sigma','Omega')
+    $DoWhileLoopCount = 0
+
+    DO
+     {
+        $DoWhileLoopCount++
+        $AdminAccountDN = ($AdminUserArray | Get-Random -Count 1).DistinguishedName
+            
+        Write-Host "Adding SPN to Admin Account $AdminAccountDN in $Domain ..." -ForegroundColor Cyan
+        $SPNMachineName = $SPNNames | Get-Random -Count 1
+        $ServerName = $SPNMachineName + (Get-Random -Minimum 10 -Maximum 99)
+        $ServerOUPath = $ServerOU + ',' + $DomainInfo.DistinguishedName
+        New-ADComputer -Name $ServerName -SamAccountName $ServerName -Path $ServerOUPath -Enabled $True -Server $DomainDC 
+
+        $SPN = 'MSSQLSvc/' + $ServerName + ':1433'
+        [string]$DefaultDomainAdminSID = $DomainInfo.DomainSID.Value + '-500'
+            
+        TRY
+          { Set-ADObject -Identity $($AdminAccountDN) -add @{serviceprincipalname=$SPN} -Server $DomainDC } 
+        CATCH
+          { Write-Warning "Unable to set the SPN $SPN on the Admin account $AdminAccountDN using the DC $DomainDC" }  
+
+     }
+        WHILE ($DoWhileLoopCount -le $NumberOfAdmins)
+ }
 
 ################################################
 
@@ -1434,5 +1478,11 @@ IF ($AddComputerAccountstoAdmins -eq $True)
 
 IF ($SetOUsWithBlockedGPOInheritance -eq $True) 
   {
-    Set-OUsWithBlockedGPOInheritance -Domain $Domain -NumberOfOUs 5  -RootOU 'OU=Branch Offices' 
+    Set-OUsWithBlockedGPOInheritance -Domain $Domain -NumberOfOUs 5 -RootOU 'OU=Branch Offices' 
   }
+
+ IF ($AddSPNsToAdmins -eq $True)
+  {
+    Add-SPNsToAdmins -Domain $Domain -NumberOfAdmins 5 -AdminOU 'OU=Accounts,OU=AD Administration' -ServerOU 'OU=Servers,OU=Enterprise Services'
+  }
+
