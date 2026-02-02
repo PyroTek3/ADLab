@@ -23,3 +23,4 @@ Invoke-ADLabBuildOut Options:
 * AddKerberosDelegation - creates random service account names and randomly configures Kerberos Delegation on them
 * AddComputerAccountstoAdmins - gets the server computer accounts and randomly adds to privileged group names
 * SetOUsWithBlockedGPOInheritance - randomly configures block Group Policy inheritance on OUs.
+* AddSPNsToAdmins - radnomly selects lab admin accounts and adds SQL Kerberos Service Principal Names (SPNs) and creates the associated SQL computer account.
