@@ -1,7 +1,7 @@
 # ADLab
-Location of some Active Directory lab scripts I have created and find useful
+Location of some Active Directory (AD) lab scripts I have created and find useful
 
-The main script is Invoke-ADLabBuildOut.ps1 which can add elements to a newly created Active Directory forest.
+The main script is Invoke-ADLabBuildOut.ps1 which can add elements to a newly created Active Directory forest. Run with Admin rights to build out the the existing AD environment.
 Invoke-ADLabBuildOut Options:
 
 * CreateTopLevelOUs - when this option is selected, it will build out an Admin OU structure and an Enterprise Services OU structure in the selected domain.
