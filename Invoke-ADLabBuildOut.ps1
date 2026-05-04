@@ -33,9 +33,9 @@ If the above requirements are not met, results will be inconsistent.
 This script is provided as-is, without support.
 #>
 
-# Script Version 1.26.05.01
+# Script Version 1.26.05.04
 # Created: 2025-10-29
-# Updated: 2026-05-01
+# Updated: 2026-05-04
 #
 
 Param
@@ -1396,7 +1396,7 @@ Function Add-SPNsToAdmins
         [Parameter(Mandatory=$true)][int]$NumberOfSites
      ) 
 
-    $USCitiesNameArray = @('Atlanta','Austin','Baltimore','Boston','Chicago','Dallas','Detroit','ElPaso','Fresno','Fort Worth','GrandRapids','Greensboro','Honolulu','Houston','Indianapolis','Jacksonville','Kansas City','LasVegas','LosAngeles','Miami','Memphis','NewYork','OklahomaCity','Orlando','Philadelphia','Quincy','Raleigh','Riverside','SanAntonio','SanFrancisco','Tampa','Tucson','Upland','VirginiaBeach','Washington','Xenia','Yonkers','Youngstown','Zanesville')
+    $CitiesNameArray = @('Atlanta','Austin','Baltimore','Bangkok','Barcelona','Beijing','Bogotá','Boston','Buenos Aires','Cairo','Chennai','Chicago','Dallas','Delhi','Detroit','Dhaka','Dublin','ElPaso','Fresno','Fort Worth','GrandRapids','Greensboro','Guadalajara','HongKong','Honolulu','Houston','Indianapolis','Istanbul','Jacksonville','Kansas City','Kinshasa','Kolkata','Lagos','LasVegas','Lima','London','LosAngeles','Madrid','Manila','Miami','Memphis','MexicoCity','Moscow','Mumbai','NewYork','OklahomaCity','Orlando','Osaka','Paris','Philadelphia','Quincy','Raleigh','RioDeJaneiro','Riverside','SanAntonio','SanFrancisco','Santiago','SaoPaulo','Seoul','Shanghai','Singapore','Tampa','Tokyo','Toronto','Tucson','Upland','VirginiaBeach','WashingtonDC','Xenia','Yonkers','Youngstown','Zanesville')
     
     $SubnetArray = @('10.250.10.0/24','10.250.15.0/24','10.250.20.0/24','10.250.25.0/24','10.250.30.0/24','10.250.35.0/24','10.250.40.0/24','10.250.45.0/24','10.250.50.0/24','10.250.55.0/24','10.250.60.0/24','10.250.65.0/24','10.250.70.0/24','10.250.75.0/24','10.250.80.0/24','10.250.85.0/24','10.250.90.0/24','10.250.95.0/24','10.250.100.0/24','10.250.105.0/24','10.250.110.0/24','10.250.115.0/24','10.250.120.0/24','10.250.125.0/24','10.250.130.0/24','10.250.135.0/24','10.250.140.0/24','10.250.145.0/24','10.250.150.0/24','10.250.155.0/24','10.250.160.0/24','10.250.165.0/24','10.250.170.0/24','10.250.175.0/24','10.250.180.0/24','10.250.185.0/24','10.250.190.0/24','10.250.195.0/24','10.250.200.0/24','10.250.205.0/24','10.250.210.0/24','10.250.215.0/24','10.250.220.0/24','10.250.225.0/24','10.250.230.0/24','10.250.235.0/24','10.250.240.0/24','10.250.245.0/24','10.250.250.0/24','10.250.253.0/24')
 
@@ -1410,7 +1410,7 @@ Function Add-SPNsToAdmins
     DO
      {
         $DoWhileLoopCount++
-        $SiteName = ($USCitiesNameArray | Get-Random -Count 1)
+        $SiteName = ($CitiesNameArray | Get-Random -Count 1)
         [array]$SiteNameArray += $SiteName
         TRY {New-ADReplicationSite -Name $SiteName}
          CATCH {}
@@ -1555,5 +1555,5 @@ IF ($SetOUsWithBlockedGPOInheritance -eq $True)
 
 IF ($CreateADSites -eq $True)
  {
-    Create-ADSite -NumberOfSites 20
+    Create-ADSite -NumberOfSites 30
  }
