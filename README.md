@@ -24,3 +24,4 @@ Invoke-ADLabBuildOut Options:
 * AddComputerAccountstoAdmins - gets the server computer accounts and randomly adds to privileged group names
 * SetOUsWithBlockedGPOInheritance - randomly configures block Group Policy inheritance on OUs.
 * AddSPNsToAdmins - radnomly selects lab admin accounts and adds SQL Kerberos Service Principal Names (SPNs) and creates the associated SQL computer account.
+* CreateADSites - randomly creates AD sites based on an included list of global cities, adds subnets, and creates site links based on newly created sites.
