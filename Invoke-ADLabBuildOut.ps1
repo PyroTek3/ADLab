@@ -1439,7 +1439,8 @@ Function Add-SPNsToAdmins
         $DoWhileLoopCount++
         
         [array]$SiteArray = ($SiteNameArray | Get-Random -Count 2)
-        $SiteLinkName = $SiteArray[0] + '-' + $SiteArray[1] + '-Link'
+        $SiteArray = $SiteArray | Sort
+        $SiteLinkName = $SiteArray[0] + '-' + $SiteArray[1] + '-SiteLink'
         $Cost = ($CostArray | Get-Random -Count 1)
         $ReplInterval = ($ReplIntervalArray | Get-Random -Count 1)
 
@@ -1555,5 +1556,5 @@ IF ($SetOUsWithBlockedGPOInheritance -eq $True)
 
 IF ($CreateADSites -eq $True)
  {
-    Create-ADSite -NumberOfSites 30
+    Create-ADSite -NumberOfSites 25
  }
