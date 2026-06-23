@@ -33,9 +33,9 @@ If the above requirements are not met, results will be inconsistent.
 This script is provided as-is, without support.
 #>
 
-# Script Version 1.26.05.04
+# Script Version 1.26.06.12
 # Created: 2025-10-29
-# Updated: 2026-05-04
+# Updated: 2026-06-23
 #
 
 Param
@@ -92,6 +92,7 @@ Function Create-TopLevelOUs
         IF ($TopLevelOUsItem -eq "Enterprise Services")
          {
             Write-Host "Creating OUs under the $TopLevelOUsItem top-level OU" -ForegroundColor Cyan
+            New-ADOrganizationalUnit 'Admin Accounts' -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False -Server $DomainDC
             New-ADOrganizationalUnit 'Entra ID' -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False -Server $DomainDC
             New-ADOrganizationalUnit 'Exchange'-Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False -Server $DomainDC
             New-ADOrganizationalUnit 'Groups' -Path "OU=$TopLevelOUsItem,$($DomainInfo.DistinguishedName)" -ProtectedFromAccidentalDeletion $False  -Server $DomainDC
@@ -184,7 +185,7 @@ Function Rename-DomainAdministrator
  }
 
 Function Create-ADLabUsers
- {
+{
     Param
      (
         [Parameter(Mandatory=$true)]$Domain,
@@ -192,6 +193,7 @@ Function Create-ADLabUsers
         [Parameter(Mandatory=$true)]$FirstNameFile,
         [Parameter(Mandatory=$true)]$LastNameFile,
         [Parameter(Mandatory=$true)]$UserOU,
+        [Parameter(Mandatory=$true)]$UPNDomain,
         [ValidateSet('FirstL','LastF','FirstNameLastName','LastNameFirstName','Random')][String]$NameFormatLayout, 
         [string]$Password,
         [switch]$EnableAccounts
@@ -210,7 +212,7 @@ Function Create-ADLabUsers
      ELSE
       { $UserOUPath = "$UserOU,$($DomainInfo.DistinguishedName)" }
 
-    $PasswordArray = @('Password99!','Password1234','P@55w0rd','1234Password','Password123!')
+    $PasswordArray = @('Password999!','Password1234','P@55w0rd!!!!','1234Password','Password123!')
     IF ($Password)
       { [switch]$PasswordString = $True }
      ELSE
@@ -402,11 +404,15 @@ Function Create-ADLabUsers
         ELSE
          { $SmartcardLogonRequiredSet = $False }
         
+        $TestUserAccountDisplayName = $TestUserAccount -replace '\.', ' '
+        $TestUserUPN = $TestUserAccount + '@' + $UPNDomain
+
         IF ($EnableAccounts -eq $True)
          {	     	   
-			New-ADUser –name "$TestUserAccount" -SamAccountName "$TestUserAccount" -Path "$UserOUPath" -DisplayName "$TestUserAccount" `
+			# -EmailAddress $TestUserUPN
+            New-ADUser –name "$TestUserAccount" -SamAccountName "$TestUserAccount" -Path "$UserOUPath" -DisplayName "$TestUserAccountDisplayName" `
 			    -Description "Test User" -AccountPassword (ConvertTo-SecureString -AsPlainText $Password -Force)  `
-			    -HomeDirectory "$HomeDir" -ProfilePath "$ProfilePath" -Company $Company -Organization $Organization -EmailAddress $TestUserUPN `
+			    -HomeDirectory "$HomeDir" -ProfilePath "$ProfilePath" -Company $Company -Organization $Organization  `
 				-Department $Department -Division $Division -Office $Office -GivenName $UserFirstName -Surname $UserLastName -CannotChangePassword $CannotChangePasswordSet `
                 -UserPrincipalName $TestUserUPN -Title $Title -HomeDrive $HomeDrive -AllowReversiblePasswordEncryption $ReversibleEncrpytionSet -PasswordNotRequired  $PasswordNotRequiredSet `
                 -PasswordNeverExpires $PasswordNeverExpiresSet -SmartcardLogonRequired $SmartcardLogonRequiredSet `
@@ -417,9 +423,9 @@ Function Create-ADLabUsers
          }
         ELSE
          {	       
-			New-ADUser –name "$TestUserAccount" -SamAccountName "$TestUserAccount" -Path "$UserOUPath" -DisplayName "$TestUserAccount" `
+			New-ADUser –name "$TestUserAccount" -SamAccountName "$TestUserAccount" -Path "$UserOUPath" -DisplayName "$TestUserAccountDisplayName" `
 			    -Description "Test User" -AccountPassword (ConvertTo-SecureString -AsPlainText $Password -Force)  `
-			    -HomeDirectory "$HomeDir" -ProfilePath "$ProfilePath" -Company $Company -Organization $Organization -EmailAddress $TestUserUPN `
+			    -HomeDirectory "$HomeDir" -ProfilePath "$ProfilePath" -Company $Company -Organization $Organization `
 				-Department $Department -Division $Division -Office $Office -GivenName $UserFirstName -Surname $UserLastName -CannotChangePassword $CannotChangePasswordSet `
                 -UserPrincipalName $TestUserUPN -Title $Title -HomeDrive $HomeDrive -AllowReversiblePasswordEncryption $ReversibleEncrpytionSet -PasswordNotRequired  $PasswordNotRequiredSet `
                 -PasswordNeverExpires $PasswordNeverExpiresSet -SmartcardLogonRequired $SmartcardLogonRequiredSet `
@@ -762,11 +768,14 @@ Function Create-ADLabAdminAccounts
         ELSE
          { $AdminAccounEmail = $NULL }
         
+        $AdminAccountDisplayName = $TestUserAccount -replace '\.', ' '
+        $TestAdminAccountUPN = $TestUserAccount + '@' + $UPNDomain
+
         New-ADUser -Name $AdminAccountName -AccountPassword (ConvertTo-SecureString -AsPlainText $Password -Force) -Path $AdminAccountOU `
-         -Description "Test admin User" -GivenName $FirstName -Surname $LastName -UserPrincipalName $AdminAccountUPN  `
+         -Description "Test admin User" -GivenName $FirstName -Surname $LastName -UserPrincipalName $AdminAccountUPN -DisplayName "$AdminAccountDisplayName" `
          -CannotChangePassword $CannotChangePasswordSet -AllowReversiblePasswordEncryption $ReversibleEncrpytionSet -PasswordNotRequired  $PasswordNotRequiredSet `
          -PasswordNeverExpires $PasswordNeverExpiresSet -SmartcardLogonRequired $SmartcardLogonRequiredSet -EmailAddress $AdminAccounEmail `
-         -Enabled $True -Server $DomainDC
+         -Enabled $True -Server $DomainDC -UserPrincipalName $TestAdminAccountUPN
         Set-ADAccountControl -Identity $AdminAccountName -DoesNotRequirePreAuth $DoesNotRequirePreAuthSet -Server $DomainDC
      }
     While 
@@ -892,7 +901,10 @@ Function Create-ADLabWindowsWorkstations
         $ComputerOperatingSystem = $($WorkstationOperatingSystemArray | Get-Random -count 1)
         $ComputerNumber = Get-Random -Minimum 10 -Maximum 99
         $ComputerAlpha = -join ((65..90) | Get-Random -Count 2 | % {[char]$_})
-        $ComputerDomain = (($DomainInfo.NetBIOSName).ToUpper()).Substring(0,8)
+        IF ( ($DomainInfo.NetBIOSName).length -gt 8)
+         { $ComputerDomain = (($DomainInfo.NetBIOSName).ToUpper()).Substring(0,8) }
+        ELSE 
+         { $ComputerDomain = ($DomainInfo.NetBIOSName).ToUpper() }
         $ComputerName = 'WK' + $ComputerDomain + $ComputerAlpha + $ComputerNumber
 
         Write-Host "Creating Windows Workstation computer account $ComputerName ($DoWhileWorkstationLoop of $NumberOfWorkstations)" -ForegroundColor Cyan
@@ -1388,7 +1400,6 @@ Function Add-SPNsToAdmins
         WHILE ($DoWhileLoopCount -le $NumberOfAdmins)
  }
 
-
  Function Create-ADSite
   {
     Param
@@ -1397,7 +1408,7 @@ Function Add-SPNsToAdmins
      ) 
 
     $CitiesNameArray = @('Atlanta','Austin','Baltimore','Bangkok','Barcelona','Beijing','Bogotá','Boston','Buenos Aires','Cairo','Chennai','Chicago','Dallas','Delhi','Detroit','Dhaka','Dublin','ElPaso','Fresno','Fort Worth','GrandRapids','Greensboro','Guadalajara','HongKong','Honolulu','Houston','Indianapolis','Istanbul','Jacksonville','Kansas City','Kinshasa','Kolkata','Lagos','LasVegas','Lima','London','LosAngeles','Madrid','Manila','Miami','Memphis','MexicoCity','Moscow','Mumbai','NewYork','OklahomaCity','Orlando','Osaka','Paris','Philadelphia','Quincy','Raleigh','RioDeJaneiro','Riverside','SanAntonio','SanFrancisco','Santiago','SaoPaulo','Seoul','Shanghai','Singapore','Tampa','Tokyo','Toronto','Tucson','Upland','VirginiaBeach','WashingtonDC','Xenia','Yonkers','Youngstown','Zanesville')
-    
+
     $SubnetArray = @('10.250.10.0/24','10.250.15.0/24','10.250.20.0/24','10.250.25.0/24','10.250.30.0/24','10.250.35.0/24','10.250.40.0/24','10.250.45.0/24','10.250.50.0/24','10.250.55.0/24','10.250.60.0/24','10.250.65.0/24','10.250.70.0/24','10.250.75.0/24','10.250.80.0/24','10.250.85.0/24','10.250.90.0/24','10.250.95.0/24','10.250.100.0/24','10.250.105.0/24','10.250.110.0/24','10.250.115.0/24','10.250.120.0/24','10.250.125.0/24','10.250.130.0/24','10.250.135.0/24','10.250.140.0/24','10.250.145.0/24','10.250.150.0/24','10.250.155.0/24','10.250.160.0/24','10.250.165.0/24','10.250.170.0/24','10.250.175.0/24','10.250.180.0/24','10.250.185.0/24','10.250.190.0/24','10.250.195.0/24','10.250.200.0/24','10.250.205.0/24','10.250.210.0/24','10.250.215.0/24','10.250.220.0/24','10.250.225.0/24','10.250.230.0/24','10.250.235.0/24','10.250.240.0/24','10.250.245.0/24','10.250.250.0/24','10.250.253.0/24')
 
     $CostArray = @('10','20','30','40','50','60','70','80','90','100')
@@ -1471,7 +1482,7 @@ IF ($RenameDomainAdministrator -eq $True)
 
 IF ($CreateADLabUsers -eq $True)
   {
-    Create-ADLabUsers -Domain $Domain -NumberOfADUserAccounts '20' -FirstNameFile 'C:\Scripts\FirstNames.csv' -LastNameFile 'C:\Scripts\LastNames.csv' -UserOU "OU=Domain Users" -EnableAccounts
+    Create-ADLabUsers -Domain $Domain -UPNDomain 'trd.com' -NumberOfADUserAccounts '2500' -FirstNameFile 'C:\Scripts\FirstNames.csv' -LastNameFile 'C:\Scripts\LastNames.csv' -UserOU "OU=Domain Users" -EnableAccounts
   }
 
 IF ($CreateADLabGroups -eq $True)
@@ -1486,7 +1497,7 @@ IF ($CreateADLabServiceAccounts -eq $True)
 
 IF ($CreateADLabAdminAccounts -eq $True)
   {
-    Create-ADLabAdminAccounts -Domain $Domain -AdminNamePrefix 'Admin' -NumberOfAdminAccounts '10' -FirstNameFile 'C:\Scripts\FirstNames.csv' -LastNameFile 'C:\Scripts\LastNames.csv' -AccountOU 'OU=Accounts,OU=AD Administration'
+    Create-ADLabAdminAccounts -Domain $Domain -AdminNamePrefix 'Admin' -NumberOfAdminAccounts '10' -FirstNameFile 'C:\Scripts\FirstNames.csv' -LastNameFile 'C:\Scripts\LastNames.csv' -AccountOU 'OU=Admin Accounts,OU=Enterprise Services'
   }
 
 IF ($CreateADLabGMSAs -eq $True) 
@@ -1496,7 +1507,7 @@ IF ($CreateADLabGMSAs -eq $True)
 
 IF ($CreateADLabWorkstations -eq $True)
   {
-    Create-ADLabWindowsWorkstations -Domain $Domain -NumberOfWorkstations '20' -ComputerOU 'OU=Workstations'
+    Create-ADLabWindowsWorkstations -Domain $Domain -NumberOfWorkstations '5000' -ComputerOU 'OU=Workstations'
   }
 
 IF ($CreateADLabServers -eq $True)
