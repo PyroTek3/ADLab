@@ -634,6 +634,7 @@ Function Create-ADLabAdminAccounts
         [Parameter(Mandatory=$true)][string]$FirstNameFile,
         [Parameter(Mandatory=$true)][string]$LastNameFile,
         [Parameter(Mandatory=$true)][string]$AccountOU,
+        [Parameter(Mandatory=$true)][string]$UPNDomain,
         [ValidateSet('FirstL','LastF','FirstNameLastName','LastNameFirstName','Random')][String]$NameFormatLayout, 
         $Password,
         [string]$AdminNamePrefix,
@@ -1497,7 +1498,7 @@ IF ($CreateADLabServiceAccounts -eq $True)
 
 IF ($CreateADLabAdminAccounts -eq $True)
   {
-    Create-ADLabAdminAccounts -Domain $Domain -AdminNamePrefix 'Admin' -NumberOfAdminAccounts '10' -FirstNameFile 'C:\Scripts\FirstNames.csv' -LastNameFile 'C:\Scripts\LastNames.csv' -AccountOU 'OU=Admin Accounts,OU=Enterprise Services'
+    Create-ADLabAdminAccounts -Domain $Domain -UPNDomain 'trd.com' -AdminNamePrefix 'Admin' -NumberOfAdminAccounts '10' -FirstNameFile 'C:\Scripts\FirstNames.csv' -LastNameFile 'C:\Scripts\LastNames.csv' -AccountOU 'OU=Admin Accounts,OU=Enterprise Services'
   }
 
 IF ($CreateADLabGMSAs -eq $True) 
